@@ -1,5 +1,6 @@
 package dev.halfcraft.mixin;
 
+import dev.halfcraft.HostPlayers;
 import dev.halfcraft.link.HostTeleports;
 import dev.halfcraft.mobs.HostNav;
 import java.util.Set;
@@ -17,7 +18,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * Every teleport of a player (an ender pearl, chorus fruit, /tp, a respawn, the server putting the
  * player back) goes out as one position packet. In the mirror world the ones Half-Life didn't ask for
  * are marked, right before the packet leaves, so the client can count them for Half-Life
- * ({@link HostTeleports}).
+ * ({@link HostTeleports}). Only the host's: Half-Life follows the host's Minecraft. A guest's
+ * client is another JVM, and its marks come with the co-op teleport payload (co-op M1, task 14).
  */
 @Mixin(ServerGamePacketListenerImpl.class)
 public abstract class OwnTeleportMixin {
@@ -32,7 +34,7 @@ public abstract class OwnTeleportMixin {
 		at = @At(value = "INVOKE", target = "Lnet/minecraft/server/network/ServerGamePacketListenerImpl;send(Lnet/minecraft/network/protocol/Packet;)V")
 	)
 	private void halfcraft$markOwnTeleport(PositionMoveRotation change, Set<Relative> relatives, CallbackInfo ci) {
-		if (HostNav.inMirror(this.player.level())) {
+		if (HostPlayers.isHost(this.player) && HostNav.inMirror(this.player.level())) {
 			HostTeleports.serverSent(this.awaitingTeleport);
 		}
 	}

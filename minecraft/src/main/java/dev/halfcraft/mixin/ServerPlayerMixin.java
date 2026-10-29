@@ -1,6 +1,7 @@
 package dev.halfcraft.mixin;
 
 import dev.halfcraft.HalfCraft;
+import dev.halfcraft.HostPlayers;
 import dev.halfcraft.combat.HostCombat;
 import dev.halfcraft.combat.HostActorEntity;
 import dev.halfcraft.link.Proto;
@@ -23,10 +24,14 @@ public abstract class ServerPlayerMixin {
 		}
 	}
 
-	/** Dying in Minecraft is dying in Half-Life. */
+	/** The host dying in Minecraft is dying in Half-Life; a guest's death is Minecraft's own business. */
 	@Inject(method = "die", at = @At("HEAD"))
 	private void halfcraft$diesInHost(DamageSource source, CallbackInfo ci) {
 		ServerPlayer self = (ServerPlayer) (Object) this;
+		if (!HostPlayers.isHost(self)) {
+			HalfCraft.LOG.info("HalfCraft: {} died in Minecraft (a guest: Half-Life isn't told)", self.getName().getString());
+			return;
+		}
 		int attacker = HostCombat.attackerActorId(source);
 		if (HostLink.active()) {
 			HostLink.pushEvent(Proto.EV_PLAYER_DIED, attacker, 0, 0, 0, 0, 0);

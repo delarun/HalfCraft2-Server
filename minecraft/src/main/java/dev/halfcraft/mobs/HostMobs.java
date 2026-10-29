@@ -4,6 +4,7 @@ import static dev.halfcraft.link.Proto.*;
 import static java.lang.foreign.ValueLayout.*;
 
 import dev.halfcraft.HalfCraft;
+import dev.halfcraft.HostPlayers;
 import dev.halfcraft.combat.HostActorEntity;
 import dev.halfcraft.combat.HostCombat;
 import dev.halfcraft.link.HostLink;
@@ -74,12 +75,13 @@ public final class HostMobs {
 	private static void serverTick(MinecraftServer server) {
 		HostNav.endTick();
 		HostWater.endTick();
-		List<ServerPlayer> players = server.getPlayerList().getPlayers();
-		if (!HostLink.active() || players.isEmpty()) {
+		// the mobs near the host's player (not the first in the list, which a respawned host isn't); guests' are M2
+		ServerPlayer host = HostPlayers.host(server);
+		if (!HostLink.active() || host == null) {
 			NEARBY.clear();
 		} else {
 			sendMobHits();
-			collect(players.getFirst());
+			collect(host);
 		}
 		writeTable(NEARBY);
 	}
@@ -163,11 +165,11 @@ public final class HostMobs {
 	}
 
 	private static void hurt(MinecraftServer server, int kind, int mobId, float hostDamage, int attackerId) {
-		List<ServerPlayer> players = server.getPlayerList().getPlayers();
-		if (players.isEmpty()) {
+		// Half-Life's hits are the host's: the attacker and the level are the host's player's
+		ServerPlayer player = HostPlayers.host(server);
+		if (player == null) {
 			return;
 		}
-		ServerPlayer player = players.getFirst();
 		ServerLevel level = player.level();
 		if (!(level.getEntity(mobId) instanceof Mob mob) || !mob.isAlive()) {
 			return;

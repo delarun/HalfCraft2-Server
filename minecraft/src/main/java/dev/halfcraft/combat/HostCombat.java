@@ -1,6 +1,7 @@
 package dev.halfcraft.combat;
 
 import dev.halfcraft.HalfCraft;
+import dev.halfcraft.HostPlayers;
 import dev.halfcraft.link.Proto;
 import dev.halfcraft.link.HostLink;
 import dev.halfcraft.link.ProtoStructs;
@@ -83,13 +84,14 @@ public final class HostCombat {
 	}
 
 	private static void serverTick(MinecraftServer server) {
-		List<ServerPlayer> players = server.getPlayerList().getPlayers();
-		if (!HostLink.active() || players.isEmpty()) {
+		// the stand-ins live in the host's player's level (not the first player's, which a respawned host isn't)
+		ServerPlayer host = HostPlayers.host(server);
+		if (!HostLink.active() || host == null) {
 			removeAll();
 			return;
 		}
-		ServerLevel level = players.getFirst().level();
-		for (ServerPlayer player : players) {
+		ServerLevel level = host.level();
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			pickUpNearby(player);
 		}
 		if (HostLink.readActors(ACTORS)) {

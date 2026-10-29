@@ -1,6 +1,7 @@
 package dev.halfcraft.weapon;
 
 import dev.halfcraft.HalfCraft;
+import dev.halfcraft.HostPlayers;
 import dev.halfcraft.link.Proto;
 import dev.halfcraft.link.WeaponTable;
 import java.util.HashMap;
@@ -80,11 +81,21 @@ public final class HostWeapons {
 		int[] owned = table.weapons().stream().mapToInt(WeaponTable.Weapon::id).filter(ITEMS::containsKey).toArray();
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			if (player.isAlive() && !player.isSpectator()) {
+				// Half-Life's weapons are the host's; any other player is brought in line with none, so no stand-in stays
+				// in a guest's hands (or stops it digging). a guest gets its own table in M2
+				boolean host = HostPlayers.isHost(player);
 				int held = weaponId(player.getInventory().getSelectedItem());
-				sync(player, owned);
-				followHalfLife(player, table, held);
+				sync(player, tableFor(host, owned));
+				if (host) {
+					followHalfLife(player, table, held);
+				}
 			}
 		}
+	}
+
+	/** The weapons a player's inventory is brought in line with: Half-Life's own for the host, none for anyone else. */
+	static int[] tableFor(boolean host, int[] owned) {
+		return host ? owned : new int[0];
 	}
 
 	/**

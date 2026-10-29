@@ -1,9 +1,9 @@
 package dev.halfcraft.world;
 
 import dev.halfcraft.HalfCraft;
+import dev.halfcraft.HostPlayers;
 import dev.halfcraft.mobs.HostMobs;
 import dev.halfcraft.mobs.HostNav;
-import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.particles.ParticleTypes;
@@ -138,13 +138,13 @@ public final class HostBlockDamage {
 		return true;
 	}
 
-	/** Half-Life's world in Minecraft: the player's level, while that's the mirror. */
+	/** Half-Life's world in Minecraft: the host's player's level, while that's the mirror. */
 	private static @Nullable ServerLevel mirror(MinecraftServer server) {
-		List<ServerPlayer> players = server.getPlayerList().getPlayers();
-		if (players.isEmpty()) {
+		ServerPlayer host = HostPlayers.host(server);
+		if (host == null) {
 			return null;
 		}
-		ServerLevel level = players.getFirst().level();
+		ServerLevel level = host.level();
 		return HostNav.inMirror(level) ? level : null;
 	}
 

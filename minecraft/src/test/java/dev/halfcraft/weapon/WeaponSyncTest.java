@@ -4,11 +4,13 @@ import static dev.halfcraft.link.Proto.*;
 import static dev.halfcraft.weapon.WeaponSync.EMPTY;
 import static dev.halfcraft.weapon.WeaponSync.OFFHAND;
 import static dev.halfcraft.weapon.WeaponSync.OTHER;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class WeaponSyncTest {
@@ -135,5 +137,21 @@ class WeaponSyncTest {
 		cursor = WeaponSync.creativeCursor(cursor, EMPTY, HOST_WEAPON_RPG);
 		slots[4] = HOST_WEAPON_RPG;
 		assertEquals(List.of(), WeaponSync.plan(slots, new int[] { HOST_WEAPON_RPG }, cursor, lastSlot));
+	}
+
+	@Test
+	void onlyTheHostGetsHalfLifesWeapons() {
+		int[] owned = { HOST_WEAPON_SMG1, HOST_WEAPON_RPG };
+		assertArrayEquals(owned, HostWeapons.tableFor(true, owned));
+		assertEquals(0, HostWeapons.tableFor(false, owned).length);
+	}
+
+	@Test
+	void aGuestsStandInsAreTakenOut() {
+		int[] slots = emptyInventory();
+		slots[2] = HOST_WEAPON_SMG1;
+		slots[3] = HOST_WEAPON_RPG;
+		int[] table = HostWeapons.tableFor(false, new int[] { HOST_WEAPON_SMG1, HOST_WEAPON_RPG });
+		assertEquals(Set.of(new WeaponSync.Remove(2), new WeaponSync.Remove(3)), Set.copyOf(WeaponSync.plan(slots, table, 0, Map.of())));
 	}
 }
