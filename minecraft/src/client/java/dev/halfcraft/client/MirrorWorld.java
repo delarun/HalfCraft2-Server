@@ -13,7 +13,10 @@ import net.minecraft.world.level.WorldDataConfiguration;
 import net.minecraft.world.level.levelgen.WorldOptions;
 import net.minecraft.world.level.levelgen.presets.WorldPreset;
 
-/** Opens (or creates) the void "mirror" world automatically once Half-Life is connected. */
+/**
+ * Opens (or creates) the void "mirror" world automatically once Half-Life is connected, except for a
+ * co-op guest, whose Minecraft plays in the host's world (CoopClient).
+ */
 public final class MirrorWorld {
 	private static final ResourceKey<WorldPreset> PRESET =
 		ResourceKey.create(Registries.WORLD_PRESET, Identifier.fromNamespaceAndPath(HalfCraft.MOD_ID, "mirror"));
@@ -22,7 +25,22 @@ public final class MirrorWorld {
 	private MirrorWorld() {
 	}
 
+	/**
+	 * Opens the mirror world on the next title screen, as after a disconnect. CoopClient calls it after
+	 * every leave: a world left on purpose shows no disconnected screen, so without it the first open
+	 * would be the only one (a guest back from the host's world, or whose host quit, would stay on the
+	 * title screen).
+	 */
+	public static void reset() {
+		attempted = false;
+	}
+
 	public static void openWhenReady(Minecraft minecraft) {
+		// A guest's: no world of its own. CoopClient ran first this frame and took a guest's
+		// disconnected screen, so the one below is a solo player's or a host's.
+		if (!CoopClient.wantsOwnWorld()) {
+			return;
+		}
 		// The world closed under us: open it again.
 		if (minecraft.gui.screen() instanceof net.minecraft.client.gui.screens.DisconnectedScreen && minecraft.level == null) {
 			HalfCraft.LOG.info("HalfCraft: disconnected; back to the mirror world");

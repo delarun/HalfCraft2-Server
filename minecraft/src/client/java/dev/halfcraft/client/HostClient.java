@@ -109,6 +109,8 @@ public final class HostClient {
 		Minecraft minecraft = Minecraft.getInstance();
 		hideWindowOnce(minecraft);
 		applyViewportSize(minecraft);
+		// co-op first: a guest leaves its own world for the host's, and MirrorWorld opens none for it
+		CoopClient.frame(minecraft, host);
 		MirrorWorld.openWhenReady(minecraft);
 
 		if (host.menuOpen() || host.loading()) {
@@ -411,6 +413,9 @@ public final class HostClient {
 		mc.sensitivity = minecraft.options.sensitivity().get().floatValue();
 		mc.teleportAck = holdPos == null ? teleportAck : teleportAck - 1; // not "arrived" until we are released
 		mc.guiScale = minecraft.getWindow().getGuiScale();
+		// what Minecraft made of the co-op fields: the host's server.dll passes the open port on to guests
+		mc.coopState = CoopClient.state();
+		mc.coopPort = CoopClient.publishedPort();
 		mc.frameCounter = ++frameCounter;
 		HostLink.writeMcState(mc);
 
