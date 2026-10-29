@@ -10,7 +10,7 @@ public final class Proto {
 
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	public static final int LAYOUT = 0x4D909C9E;
+	public static final int LAYOUT = 0xE8A07A2F;
 
 	// ---- where each part of the mapping is
 	public static final long OFF_HEADER = 0x00;
@@ -75,6 +75,7 @@ public final class Proto {
 	// ---- host -> MC state @0x100 --------------------------------------------------------------------
 	public static final int WATER_GRID_SIZE = 16;
 	public static final float NO_WATER = -1e+30F;
+	public static final int COOP_RETRY_MS = 5000; // how long Minecraft waits before opening or joining again after a failure
 
 	// HostFlags
 	public static final int HOST_IN_GAME = 1 << 0; // a map is loaded and the player exists
@@ -86,6 +87,12 @@ public final class Proto {
 	// player stays at posX/Y/Z every tick, without falling or fall damage, until the hand-back's teleport
 	public static final int HOST_TAKEOVER = 1 << 7;
 	// bit 8: kept for the puppet group (A), 9-10 for the world group (C)
+
+	// CoopMode
+	// Whether this is a co-op game, and which end of it: the host's or a guest's.
+	public static final int COOP_SOLO = 0; // one player: Minecraft keeps its own world
+	public static final int COOP_HOST = 1; // the host of a two-slot listen server: Minecraft opens its world to LAN on coopPort
+	public static final int COOP_GUEST = 2; // a guest on another game's listen server: Minecraft leaves its own world and joins coopIp:coopPort
 
 	// HostState: offsets in it (in OFF_HOST_STATE)
 	public static final long HS_SEQ = 0x00;
@@ -106,7 +113,10 @@ public final class Proto {
 	// minecraft draws its overlay at the viewport's size over this (hc_overlay_scale), a gui scale it
 	// was given divided alike, and the host scales it back up pixel for pixel. 0 (an older host): 1
 	public static final long HS_OVERLAY_DIVISOR = 0x48;
-	public static final int HS_BYTES = 0x50;
+	public static final long HS_COOP_MODE = 0x50; // CoopMode
+	public static final long HS_COOP_IP = 0x54; // COOP_GUEST: the host's IPv4 address, a.b.c.d as a << 24 | b << 16 | c << 8 | d
+	public static final long HS_COOP_PORT = 0x58; // COOP_HOST: the TCP port its Minecraft opens its world to LAN on; COOP_GUEST: the port of the host's world it joins (0: not open yet)
+	public static final int HS_BYTES = 0x60;
 
 	// WaterGrid: offsets in it (in OFF_WATER_GRID)
 	// The host's water around the player, for Minecraft to treat as its own water: swimming,
@@ -131,6 +141,14 @@ public final class Proto {
 	public static final int MC_SLEEPING = 1 << 8; // in a bed: yaw/pitch are the look Minecraft holds there, eyeX/Y/Z its camera
 	public static final int MC_SUBTITLES = 1 << 9; // Minecraft's Show Subtitles option: the host's close captions go to Minecraft (STR_CAPTION)
 	// bits 12-13: kept for the puppet group (A), 14-15 for the world group (C)
+
+	// CoopState
+	// What Minecraft made of HostState's coop fields.
+	public static final int COOP_IDLE = 0; // nothing to open or join (COOP_SOLO, or the host hasn't said yet)
+	public static final int COOP_OPEN = 1; // COOP_HOST: its world is open to LAN, on coopPort
+	public static final int COOP_JOINING = 2; // COOP_GUEST: connecting to the host's world
+	public static final int COOP_JOINED = 3; // COOP_GUEST: in the host's world
+	public static final int COOP_FAILED = 4; // couldn't open or join (Minecraft's log says why): it tries again after COOP_RETRY_MS
 
 	// McState: offsets in it (in OFF_MC_STATE)
 	public static final long MS_SEQ = 0x00;
@@ -183,6 +201,8 @@ public final class Proto {
 	// host's own teleports), in the same tick as curX/Y/Z: the host takes the jump that follows wherever
 	// the player fits, and resyncs Minecraft where it doesn't.
 	public static final long MS_TELEPORT_COUNT = 0xE0;
+	public static final long MS_COOP_STATE = 0xE4; // CoopState: what Minecraft made of HostState's coop fields
+	public static final long MS_COOP_PORT = 0xE8; // the port its world is open to LAN on (COOP_OPEN), else 0
 	public static final int MS_BYTES = 0xF0;
 	// 0xF0-0xFF: kept for the world group (C)
 

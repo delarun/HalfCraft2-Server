@@ -13,6 +13,7 @@ doc = "host -> MC, see WaterGrid"
 [constants]
 kWaterGridSize = { type = "u32", value = 16 }
 kNoWater = { type = "f32", value = -1.0e30 }
+kCoopRetryMs = { type = "u32", value = 5000, doc = "how long Minecraft waits before opening or joining again after a failure" }
 
 [enums.HostFlags]
 type = "u32"
@@ -28,10 +29,19 @@ kHostTakeover = { bit = 7, doc = """
 source moves the player itself (a ladder, a lift or train, a vehicle, a scripted scene): Minecraft's
 player stays at posX/Y/Z every tick, without falling or fall damage, until the hand-back's teleport""" }
 
+[enums.CoopMode]
+type = "u32"
+doc = "Whether this is a co-op game, and which end of it: the host's or a guest's."
+
+[enums.CoopMode.items]
+kCoopSolo = { value = 0, doc = "one player: Minecraft keeps its own world" }
+kCoopHost = { value = 1, doc = "the host of a two-slot listen server: Minecraft opens its world to LAN on coopPort" }
+kCoopGuest = { value = 2, doc = "a guest on another game's listen server: Minecraft leaves its own world and joins coopIp:coopPort" }
+
 [structs.HostState]
 seqlock = true
 java_class = "class"
-size = 0x50
+size = 0x60
 java = "HS"
 
 [structs.HostState.fields]
@@ -50,6 +60,10 @@ overlayDivisor = { type = "u32", doc = """
 minecraft draws its overlay at the viewport's size over this (hc_overlay_scale), a gui scale it
 was given divided alike, and the host scales it back up pixel for pixel. 0 (an older host): 1""" }
 overlayPad = "u32"
+coopMode = { type = "u32", doc = "CoopMode" }
+coopIp = { type = "u32", doc = "kCoopGuest: the host's IPv4 address, a.b.c.d as a << 24 | b << 16 | c << 8 | d" }
+coopPort = { type = "u32", doc = "kCoopHost: the TCP port its Minecraft opens its world to LAN on; kCoopGuest: the port of the host's world it joins (0: not open yet)" }
+coopPad = "u32"
 
 [structs.WaterGrid]
 seqlock = true

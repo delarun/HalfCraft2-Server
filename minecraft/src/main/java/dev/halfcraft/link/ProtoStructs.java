@@ -35,6 +35,9 @@ public final class ProtoStructs {
 		// minecraft draws its overlay at the viewport's size over this (hc_overlay_scale), a gui scale it
 		// was given divided alike, and the host scales it back up pixel for pixel. 0 (an older host): 1
 		public int overlayDivisor;
+		public int coopMode; // CoopMode
+		public int coopIp; // COOP_GUEST: the host's IPv4 address, a.b.c.d as a << 24 | b << 16 | c << 8 | d
+		public int coopPort; // COOP_HOST: the TCP port its Minecraft opens its world to LAN on; COOP_GUEST: the port of the host's world it joins (0: not open yet)
 
 		public void read(MemorySegment s, long at) {
 			this.flags = s.get(JAVA_INT, at + HS_FLAGS);
@@ -52,6 +55,9 @@ public final class ProtoStructs {
 			this.seatYaw = s.get(JAVA_FLOAT, at + HS_SEAT_YAW);
 			this.speedFactor = s.get(JAVA_FLOAT, at + HS_SPEED_FACTOR);
 			this.overlayDivisor = s.get(JAVA_INT, at + HS_OVERLAY_DIVISOR);
+			this.coopMode = s.get(JAVA_INT, at + HS_COOP_MODE);
+			this.coopIp = s.get(JAVA_INT, at + HS_COOP_IP);
+			this.coopPort = s.get(JAVA_INT, at + HS_COOP_PORT);
 		}
 
 		public void write(MemorySegment s, long at) {
@@ -71,6 +77,10 @@ public final class ProtoStructs {
 			s.set(JAVA_FLOAT, at + HS_SPEED_FACTOR, this.speedFactor);
 			s.set(JAVA_INT, at + HS_OVERLAY_DIVISOR, this.overlayDivisor);
 			s.asSlice(at + 0x4C, 4).fill((byte) 0); // overlayPad
+			s.set(JAVA_INT, at + HS_COOP_MODE, this.coopMode);
+			s.set(JAVA_INT, at + HS_COOP_IP, this.coopIp);
+			s.set(JAVA_INT, at + HS_COOP_PORT, this.coopPort);
+			s.asSlice(at + 0x5C, 4).fill((byte) 0); // coopPad
 		}
 
 		public void copyFrom(HostState other) {
@@ -89,6 +99,9 @@ public final class ProtoStructs {
 			this.seatYaw = other.seatYaw;
 			this.speedFactor = other.speedFactor;
 			this.overlayDivisor = other.overlayDivisor;
+			this.coopMode = other.coopMode;
+			this.coopIp = other.coopIp;
+			this.coopPort = other.coopPort;
 		}
 	}
 
@@ -174,6 +187,8 @@ public final class ProtoStructs {
 		// host's own teleports), in the same tick as curX/Y/Z: the host takes the jump that follows wherever
 		// the player fits, and resyncs Minecraft where it doesn't.
 		public int teleportCount;
+		public int coopState; // CoopState: what Minecraft made of HostState's coop fields
+		public int coopPort; // the port its world is open to LAN on (COOP_OPEN), else 0
 
 		public void read(MemorySegment s, long at) {
 			this.flags = s.get(JAVA_INT, at + MS_FLAGS);
@@ -214,6 +229,8 @@ public final class ProtoStructs {
 			this.absorption = s.get(JAVA_FLOAT, at + MS_ABSORPTION);
 			this.heldWeapon = s.get(JAVA_INT, at + MS_HELD_WEAPON);
 			this.teleportCount = s.get(JAVA_INT, at + MS_TELEPORT_COUNT);
+			this.coopState = s.get(JAVA_INT, at + MS_COOP_STATE);
+			this.coopPort = s.get(JAVA_INT, at + MS_COOP_PORT);
 		}
 
 		public void write(MemorySegment s, long at) {
@@ -259,7 +276,9 @@ public final class ProtoStructs {
 			s.set(JAVA_INT, at + MS_HELD_WEAPON, this.heldWeapon);
 			s.asSlice(at + 0xDC, 4).fill((byte) 0); // heldWeaponPad
 			s.set(JAVA_INT, at + MS_TELEPORT_COUNT, this.teleportCount);
-			s.asSlice(at + 0xE4, 12).fill((byte) 0); // teleportPad
+			s.set(JAVA_INT, at + MS_COOP_STATE, this.coopState);
+			s.set(JAVA_INT, at + MS_COOP_PORT, this.coopPort);
+			s.asSlice(at + 0xEC, 4).fill((byte) 0); // coopPad
 		}
 
 		public void copyFrom(McState other) {
@@ -301,6 +320,8 @@ public final class ProtoStructs {
 			this.absorption = other.absorption;
 			this.heldWeapon = other.heldWeapon;
 			this.teleportCount = other.teleportCount;
+			this.coopState = other.coopState;
+			this.coopPort = other.coopPort;
 		}
 	}
 

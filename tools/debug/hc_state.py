@@ -12,6 +12,11 @@ from halfcraft import protocol
 from halfcraft.link import open_link
 
 
+def dotted(ip: int) -> str:
+    """a.b.c.d for the address HostState holds as a << 24 | b << 16 | c << 8 | d."""
+    return ".".join(str(ip >> shift & 0xFF) for shift in (24, 16, 8, 0))
+
+
 def main() -> None:
     seconds = float(sys.argv[1]) if len(sys.argv) > 1 else 0.0
     schema = protocol.load()
@@ -31,6 +36,7 @@ def main() -> None:
             f"mc   pid {header['mcPid']} flags {mc['flags']:#x} pos ({mc['x']:.2f} {mc['y']:.2f} {mc['z']:.2f}) "
             f"look ({mc['yaw']:.1f} {mc['pitch']:.1f}) eye {mc['eyeHeight']:.2f} ack {mc['teleportAck']}"
         )
+        print(f"coop mode {host['coopMode']} ip {dotted(host['coopIp'])} port {host['coopPort']}; minecraft coop {mc['coopState']} port {mc['coopPort']}")
         if time.time() >= end:
             break
         time.sleep(0.5)

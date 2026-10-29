@@ -9,7 +9,7 @@ namespace halfcraft::proto
 {
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	inline constexpr std::uint32_t kLayout = 0x4D909C9E;
+	inline constexpr std::uint32_t kLayout = 0xE8A07A2F;
 
 	// ---- where each part of the mapping is ----------------------------------------------------------
 	inline constexpr std::uint64_t kOffHeader = 0x00;
@@ -77,6 +77,7 @@ namespace halfcraft::proto
 	// ---- host -> MC state @0x100 --------------------------------------------------------------------
 	inline constexpr std::uint32_t kWaterGridSize = 16;
 	inline constexpr float         kNoWater = -1e+30f;
+	inline constexpr std::uint32_t kCoopRetryMs = 5000;  // how long Minecraft waits before opening or joining again after a failure
 
 	enum HostFlags : std::uint32_t
 	{
@@ -89,6 +90,14 @@ namespace halfcraft::proto
 		// player stays at posX/Y/Z every tick, without falling or fall damage, until the hand-back's teleport
 		kHostTakeover = 1u << 7,
 		// bit 8: kept for the puppet group (A), 9-10 for the world group (C)
+	};
+
+	// Whether this is a co-op game, and which end of it: the host's or a guest's.
+	enum CoopMode : std::uint32_t
+	{
+		kCoopSolo = 0,   // one player: Minecraft keeps its own world
+		kCoopHost = 1,   // the host of a two-slot listen server: Minecraft opens its world to LAN on coopPort
+		kCoopGuest = 2,  // a guest on another game's listen server: Minecraft leaves its own world and joins coopIp:coopPort
 	};
 
 	struct HostState
@@ -108,8 +117,12 @@ namespace halfcraft::proto
 		// was given divided alike, and the host scales it back up pixel for pixel. 0 (an older host): 1
 		std::uint32_t overlayDivisor;
 		std::uint32_t overlayPad;
+		std::uint32_t coopMode;  // CoopMode
+		std::uint32_t coopIp;    // kCoopGuest: the host's IPv4 address, a.b.c.d as a << 24 | b << 16 | c << 8 | d
+		std::uint32_t coopPort;  // kCoopHost: the TCP port its Minecraft opens its world to LAN on; kCoopGuest: the port of the host's world it joins (0: not open yet)
+		std::uint32_t coopPad;
 	};
-	static_assert(sizeof(HostState) == 0x50);
+	static_assert(sizeof(HostState) == 0x60);
 
 	// The host's water around the player, for Minecraft to treat as its own water: swimming,
 	// floating, drowning. Seqlock like HostState.
@@ -136,6 +149,16 @@ namespace halfcraft::proto
 		kMcSleeping = 1u << 8,    // in a bed: yaw/pitch are the look Minecraft holds there, eyeX/Y/Z its camera
 		kMcSubtitles = 1u << 9,   // Minecraft's Show Subtitles option: the host's close captions go to Minecraft (kStrCaption)
 		// bits 12-13: kept for the puppet group (A), 14-15 for the world group (C)
+	};
+
+	// What Minecraft made of HostState's coop fields.
+	enum CoopState : std::uint32_t
+	{
+		kCoopIdle = 0,     // nothing to open or join (kCoopSolo, or the host hasn't said yet)
+		kCoopOpen = 1,     // kCoopHost: its world is open to LAN, on coopPort
+		kCoopJoining = 2,  // kCoopGuest: connecting to the host's world
+		kCoopJoined = 3,   // kCoopGuest: in the host's world
+		kCoopFailed = 4,   // couldn't open or join (Minecraft's log says why): it tries again after kCoopRetryMs
 	};
 
 	struct McState
@@ -182,7 +205,9 @@ namespace halfcraft::proto
 		// host's own teleports), in the same tick as curX/Y/Z: the host takes the jump that follows wherever
 		// the player fits, and resyncs Minecraft where it doesn't.
 		std::uint32_t teleportCount;
-		std::uint32_t teleportPad[3];
+		std::uint32_t coopState;  // CoopState: what Minecraft made of HostState's coop fields
+		std::uint32_t coopPort;   // the port its world is open to LAN on (kCoopOpen), else 0
+		std::uint32_t coopPad;
 		// 0xF0-0xFF: kept for the world group (C)
 	};
 	static_assert(sizeof(McState) == 0xF0);

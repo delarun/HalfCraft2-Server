@@ -21,6 +21,17 @@ kMcFlying = { bit = 7 }
 kMcSleeping = { bit = 8, doc = "in a bed: yaw/pitch are the look Minecraft holds there, eyeX/Y/Z its camera" }
 kMcSubtitles = { bit = 9, doc = "Minecraft's Show Subtitles option: the host's close captions go to Minecraft (kStrCaption)" }
 
+[enums.CoopState]
+type = "u32"
+doc = "What Minecraft made of HostState's coop fields."
+
+[enums.CoopState.items]
+kCoopIdle = { value = 0, doc = "nothing to open or join (kCoopSolo, or the host hasn't said yet)" }
+kCoopOpen = { value = 1, doc = "kCoopHost: its world is open to LAN, on coopPort" }
+kCoopJoining = { value = 2, doc = "kCoopGuest: connecting to the host's world" }
+kCoopJoined = { value = 3, doc = "kCoopGuest: in the host's world" }
+kCoopFailed = { value = 4, doc = "couldn't open or join (Minecraft's log says why): it tries again after kCoopRetryMs" }
+
 [structs.McState]
 seqlock = true
 java_class = "class"
@@ -73,4 +84,6 @@ teleportCount = { type = "u32", doc = """
 Bumps each time Minecraft moved its player by itself (an ender pearl, chorus fruit, /tp; not the
 host's own teleports), in the same tick as curX/Y/Z: the host takes the jump that follows wherever
 the player fits, and resyncs Minecraft where it doesn't.""" }
-teleportPad = "u32[3]"
+coopState = { type = "u32", doc = "CoopState: what Minecraft made of HostState's coop fields" }
+coopPort = { type = "u32", doc = "the port its world is open to LAN on (kCoopOpen), else 0" }
+coopPad = "u32"
