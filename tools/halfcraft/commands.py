@@ -5,7 +5,7 @@ import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from halfcraft import REPO, ToolError, posix
+from halfcraft import REPO, ToolError
 
 
 def run(
@@ -50,6 +50,8 @@ def git(*arguments: str | Path, repo: Path = REPO, timeout: float = 60, what: st
 def kill_tree(pid: int) -> None:
     """ends a process and every process it started (a .bat's cmd.exe leaves its java behind otherwise)."""
     if os.name != "nt":
+        from halfcraft import posix  # noqa: PLC0415 linux only: it takes fcntl, which windows has none of
+
         posix.kill_tree(pid)
         return
     subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], capture_output=True, timeout=30, check=False)
