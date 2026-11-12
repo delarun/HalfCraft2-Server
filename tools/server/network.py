@@ -273,9 +273,78 @@ def idle(minutes: float) -> None:
             marker.unlink(missing_ok=True)
 
 
+CLIENT = NETWORK / "client"  # the client package the launcher fetches (serve: port 27080)
+PACKAGE_PORT = 27080
+FABRIC_API_URL = "https://cdn.modrinth.com/data/P7dR8mSH/versions/bNnaTiuM/fabric-api-0.161.0%2B26.3.jar"
+FABRIC_API_SHA512 = "ed6b2586d6fde11fde8472f5a527c51e99b67026e46f94d4bfd85e7e28ce5ee299173ee16ad576ceb51f39f98d30a811086a6deb1a86a524859cc16e12da109d"
+
+
+def gradle_property(name: str) -> str:
+    for line in (MINECRAFT / "gradle.properties").read_text().splitlines():
+        if line.startswith(name + "="):
+            return line.split("=", 1)[1].strip()
+    raise ToolError(f"no {name} in minecraft/gradle.properties")
+
+
+def file_entry(path: str, source: Path) -> dict:
+    import hashlib  # noqa: PLC0415
+
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    return {"path": path, "sha256": digest, "size": source.stat().st_size}
+
+
+def package() -> None:
+    """the client package the launcher (launcher/) installs: the linux game folder (build/game-hl2dm's own files,
+    the libraries without their debug symbols), the mod's jar and fabric api (from modrinth), and manifest.json.
+    windows has none yet: its dlls come from a windows build."""
+    game = REPO / "build" / "game-hl2dm"
+    listed = game / "halfcraft-files.txt"
+    if not listed.exists():
+        raise ToolError(f"no {listed}: make build first")
+    shutil.rmtree(CLIENT, ignore_errors=True)
+    linux = []
+    names = [line.strip().lstrip("\ufeff") for line in listed.read_text(encoding="utf-8-sig").splitlines() if line.strip()]
+    for name in [*names, "gameinfo.txt", "halfcraft-files.txt"]:
+        source = game / name
+        if not source.is_file():
+            continue
+        target = CLIENT / "game-hl2dm" / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if name.endswith(".so"):
+            subprocess.run(["objcopy", "--strip-debug", str(source), str(target)], check=True)
+        else:
+            shutil.copy2(source, target)
+        linux.append(file_entry(f"game-hl2dm/{name}", target))
+    jars = sorted((p for p in (MINECRAFT / "build" / "libs").glob("halfcraft-*.jar") if not p.name.endswith("-sources.jar")), key=lambda p: p.stat().st_mtime)
+    if not jars:
+        raise ToolError("no mod jar in minecraft/build/libs: run gradle build first")
+    mod = CLIENT / "minecraft" / "instance" / "mods" / "halfcraft.jar"
+    mod.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(jars[-1], mod)
+    any_platform = [file_entry("minecraft/instance/mods/halfcraft.jar", mod),
+                    {"path": "minecraft/instance/mods/fabric-api.jar", "url": FABRIC_API_URL, "sha512": FABRIC_API_SHA512}]  # fmt: skip
+    manifest = {
+        "version": jars[-1].stem.removeprefix("halfcraft-"),
+        "minecraft": gradle_property("minecraft_version"),
+        "fabric_loader": gradle_property("loader_version"),
+        "srcds_port": find(HUB[0])["srcds"],
+        "files": {"any": any_platform, "linux": linux, "windows": []},
+    }
+    (CLIENT / "manifest.json").write_text(json.dumps(manifest, indent=1))
+    size = sum(f.get("size", 0) for f in linux) // (1 << 20)
+    print(f"client package {manifest['version']}: {len(linux)} linux files ({size} MB) in {CLIENT}")
+
+
+def serve() -> None:
+    """the client package over http, on port 27080, until stopped."""
+    if not (CLIENT / "manifest.json").exists():
+        package()
+    subprocess.run([sys.executable, "-m", "http.server", str(PACKAGE_PORT), "--directory", str(CLIENT)], check=False)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="the halfcraft server's network: a hub and every half-life 2 map")
-    parser.add_argument("what", choices=["layout", "start", "ensure", "stop", "status", "idle"])
+    parser.add_argument("what", choices=["layout", "start", "ensure", "stop", "status", "idle", "package", "serve"])
     parser.add_argument("name", nargs="?")
     parser.add_argument("--srcds", help="the dedicated server's folder (HALFCRAFT_SRCDS)")
     options = parser.parse_args()
@@ -291,6 +360,10 @@ def main() -> None:
         ensure(find(options.name), options.srcds)
     elif options.what == "stop":
         stop([options.name] if options.name else [])
+    elif options.what == "package":
+        package()
+    elif options.what == "serve":
+        serve()
     elif options.what == "idle":
         idle(float(options.name or 10))
     else:

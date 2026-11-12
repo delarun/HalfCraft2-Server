@@ -39,7 +39,7 @@ SHELL := /bin/bash
 PYTHON := python3
 endif
 .DEFAULT_GOAL := help
-.PHONY: help setup build mc mc-run mc-server mc-test run cmd server server-layout server-cmd test-start test-stop patches proto package format lint tidy core-test clean
+.PHONY: launcher network network-stop network-status network-package network-serve help setup build mc mc-run mc-server mc-test run cmd server server-layout server-cmd test-start test-stop patches proto package format lint tidy core-test clean
 
 ENGINE ?= all
 RUN_ENGINE := $(if $(filter all,$(ENGINE)),hl2dm,$(ENGINE))
@@ -91,6 +91,16 @@ network-stop:
 
 network-status:
 	$(PYTHON) tools/server/network.py status
+
+network-package:
+	$(PYTHON) tools/server/network.py package
+
+network-serve:
+	$(PYTHON) tools/server/network.py serve
+
+launcher:
+	cd launcher && go vet ./... && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o ../dist/halfcraft-launcher . \
+		&& GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -H windowsgui" -o ../dist/HalfCraft.exe .
 
 server-layout:
 	$(PYTHON) tools/server/srcds.py layout

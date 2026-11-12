@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HalfCraft</title>
+<style>
+  :root { --bg: #14161a; --panel: #1d2026; --text: #e8e6e3; --muted: #9aa0a8; --accent: #f28c28; --bad: #e5534b; --ok: #57ab5a; --line: #2d3139; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px; }
+  h1 { margin: 0 0 4px; font-size: 28px; letter-spacing: .5px; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); margin-bottom: 24px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  label { display: block; color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+  input { width: 100%; padding: 9px 10px; border-radius: 6px; border: 1px solid var(--line); background: #0f1114; color: var(--text); font: inherit; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1; min-width: 200px; }
+  button { padding: 9px 16px; border-radius: 6px; border: 0; background: #2d3139; color: var(--text); font: inherit; cursor: pointer; }
+  button.primary { background: var(--accent); color: #111; font-weight: 600; font-size: 17px; padding: 12px 28px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .problem { color: var(--bad); margin-top: 8px; font-size: 14px; }
+  .code { font: 600 26px/1 ui-monospace, monospace; letter-spacing: 3px; color: var(--accent); }
+  pre { margin: 0; max-height: 260px; overflow: auto; font: 12px/1.5 ui-monospace, monospace; color: var(--muted); white-space: pre-wrap; }
+  .account { font-weight: 600; }
+  .ok { color: var(--ok); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Half<span>Craft</span></h1>
+  <div class="sub" id="version"></div>
+
+  <section>
+    <label for="server">Сервер</label>
+    <input id="server" placeholder="адрес сервера, например 192.168.10.254">
+    <label for="deathmatch" style="margin-top:12px">Папка Half-Life 2: Deathmatch</label>
+    <input id="deathmatch" placeholder="steamapps/common/Half-Life 2 Deathmatch">
+    <div class="problem" id="problem"></div>
+  </section>
+
+  <section>
+    <div class="row">
+      <div class="grow">Minecraft: <span class="account" id="account">не выполнен вход</span></div>
+      <button id="signin">Войти через Microsoft</button>
+      <button id="signout">Выйти</button>
+    </div>
+    <div id="code" style="display:none; margin-top:12px">
+      Откройте <a id="codeurl" target="_blank" style="color:var(--accent)"></a> и введите код:
+      <div class="code" id="codevalue"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="row">
+      <button class="primary" id="play">Играть</button>
+      <div class="grow" id="busy" style="color:var(--muted)"></div>
+    </div>
+  </section>
+
+  <section>
+    <pre id="log"></pre>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let edited = false;
+async function call(path, body) {
+  const r = await fetch(path, body === undefined ? {method: 'POST'} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  render(await r.json());
+}
+function render(s) {
+  $('version').textContent = 'лаунчер ' + s.version;
+  if (!edited) { $('server').value = s.server; $('deathmatch').value = s.deathmatch; }
+  $('problem').textContent = s.problem || '';
+  $('account').textContent = s.account || 'не выполнен вход';
+  $('account').className = s.account ? 'account ok' : 'account';
+  $('signout').style.display = s.account ? '' : 'none';
+  $('signin').disabled = !!s.busy;
+  $('play').disabled = !!s.busy || s.running;
+  $('play').textContent = s.running ? 'Игра запущена' : 'Играть';
+  $('busy').textContent = s.busy === 'play' ? 'Подготовка…' : s.busy === 'sign-in' ? 'Ожидание входа…' : '';
+  if (s.code) {
+    $('code').style.display = '';
+    $('codeurl').href = s.code.verification_uri; $('codeurl').textContent = s.code.verification_uri;
+    $('codevalue').textContent = s.code.user_code;
+  } else { $('code').style.display = 'none'; }
+  const log = $('log'); const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 4;
+  log.textContent = (s.log || []).join('\n');
+  if (atBottom) log.scrollTop = log.scrollHeight;
+}
+for (const id of ['server', 'deathmatch']) {
+  $(id).addEventListener('input', () => { edited = true; });
+  $(id).addEventListener('change', async () => { await call('/api/config', {Server: $('server').value, Deathmatch: $('deathmatch').value}); edited = false; });
+}
+$('signin').onclick = () => call('/api/signin');
+$('signout').onclick = () => call('/api/signout');
+$('play').onclick = async () => { await call('/api/config', {Server: $('server').value, Deathmatch: $('deathmatch').value}); edited = false; call('/api/play'); };
+async function poll() { try { render(await (await fetch('/api/state')).json()); } catch (e) {} setTimeout(poll, 1000); }
+poll();
+</script>
+</body>
+</html>
