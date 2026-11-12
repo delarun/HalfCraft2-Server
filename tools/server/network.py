@@ -29,6 +29,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools/, where the halfcraft package is
 import rcon
+
 from halfcraft import REPO, ToolError
 
 # half-life 2's chapters (no episodes), each a block of the hub: (title, maps)
@@ -127,7 +128,9 @@ def layout() -> None:
         for name in ("eula.txt", "ops.json", "whitelist.json", "banned-players.json", "banned-ips.json"):
             if (TEMPLATE / name).exists():
                 shutil.copy2(TEMPLATE / name, here / name)
-    (NETWORK / "network.json").write_text(json.dumps({"host": public_host(), "chapters": [c for c, _ in CHAPTERS], "pairs": pairs()}, ensure_ascii=False, indent=1))
+    (NETWORK / "network.json").write_text(
+        json.dumps({"host": public_host(), "chapters": [c for c, _ in CHAPTERS], "pairs": pairs()}, ensure_ascii=False, indent=1)
+    )
     print(f"laid out {len(pairs())} pairs in {NETWORK}")
 
 
@@ -179,10 +182,12 @@ def snapshot() -> tuple[Path, Path]:
             copy = staging / folder.relative_to(MINECRAFT / "build")
             shutil.copytree(folder, copy)
             replace[str(folder)] = str(here / folder.relative_to(MINECRAFT / "build"))
+
     def moved(text: str) -> str:
         for old, new in replace.items():
             text = text.replace(old, new)
         return text
+
     (staging / "runServer").write_text(moved((MINECRAFT / "build" / "loom-cache" / "argFiles" / "runServer").read_text()))
     (staging / "launch.cfg").write_text(moved((MINECRAFT / ".gradle" / "loom-cache" / "launch.cfg").read_text()))
     shutil.rmtree(here, ignore_errors=True)
@@ -197,7 +202,7 @@ def start(pair: dict, srcds: str | None) -> None:
         extra = ["--srcds", srcds] if srcds else []
         command = [sys.executable, str(SRCDS), "run", "--no-layout", *extra, "--map", pair["map"], "--port", str(pair["srcds"]), "--link", f"srv-{pair['name']}",
                    "--mc-port", str(pair["minecraft"]), "--log", str(here / "srcds.log")]  # fmt: skip
-        with open(here / "srcds.out", "w") as out:
+        with (here / "srcds.out").open("w") as out:
             subprocess.Popen(command, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
     if "minecraft" not in running:
         if PRODUCTION_JAR.exists():
@@ -214,8 +219,13 @@ def start(pair: dict, srcds: str | None) -> None:
             command = [str(JAVA), f"-Dfabric.dli.config={config}", "-Dfabric.dli.env=server",
                        "-Dfabric.dli.main=net.fabricmc.loader.impl.launch.knot.KnotServer", f"@{argfile}", "--enable-native-access=ALL-UNNAMED",
                        "--sun-misc-unsafe-memory-access=allow", "-Dfile.encoding=UTF-8", f"-Xmx{MEMORY}", "net.fabricmc.devlaunchinjector.Main", "nogui"]  # fmt: skip
-        env = {**os.environ, "HALFCRAFT_SERVER_LINKS": f"srv-{pair['name']}", "HALFCRAFT_NETWORK": str(NETWORK / "network.json"), "HALFCRAFT_PAIR": pair["name"]}
-        with open(here / "minecraft.log", "w") as out:
+        env = {
+            **os.environ,
+            "HALFCRAFT_SERVER_LINKS": f"srv-{pair['name']}",
+            "HALFCRAFT_NETWORK": str(NETWORK / "network.json"),
+            "HALFCRAFT_PAIR": pair["name"],
+        }
+        with (here / "minecraft.log").open("w") as out:
             subprocess.Popen(command, cwd=here, env=env, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
     print(f"{pair['name']}: srcds {pair['srcds']}, minecraft {pair['minecraft']} (logs in {here})")
 
@@ -309,21 +319,55 @@ def file_entry(path: str, source: Path) -> dict:
     return {"path": path, "sha256": digest, "size": source.stat().st_size}
 
 
-def package() -> None:
-    """the client package the launcher (launcher/) installs: the linux game folder (build/game-hl2dm's own files,
-    the libraries without their debug symbols), the mod's jar and fabric api (from modrinth), and manifest.json.
-    windows has none yet: its dlls come from a windows build."""
-    game = REPO / "build" / "game-hl2dm"
+def game_files(game: Path) -> list[str]:
+    """the game folder's own files (halfcraft-files.txt, written as make build lays it out), and the list itself."""
     listed = game / "halfcraft-files.txt"
     if not listed.exists():
         raise ToolError(f"no {listed}: make build first")
+    names = [line.strip() for line in listed.read_text(encoding="utf-8-sig").splitlines() if line.strip()]
+    return [name for name in [*names, "gameinfo.txt", "halfcraft-files.txt"] if (game / name).is_file()]
+
+
+def client_zip(out: Path) -> None:
+    """this machine's game folder (a windows build's, in ci) as a zip: package --windows-zip takes it into the client
+    package on the server."""
+    import zipfile  # noqa: PLC0415
+
+    game = REPO / "build" / "game-hl2dm"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name in game_files(game):
+            archive.write(game / name, f"game-hl2dm/{name}")
+    print(f"{out}: {len(game_files(game))} files of {game}")
+
+
+def windows_files(archive_path: Path) -> list[dict]:
+    """a windows client zip (client_zip, from ci) unpacked into the package's windows/ folder, as manifest entries."""
+    import zipfile  # noqa: PLC0415
+
+    entries = []
+    with zipfile.ZipFile(archive_path) as archive:
+        for name in archive.namelist():
+            if name.endswith("/") or ".." in name:
+                continue
+            target = CLIENT / "windows" / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(archive.read(name))
+            entry = file_entry(name, target)
+            entry["source"] = f"windows/{name}"
+            entries.append(entry)
+    return entries
+
+
+def package(windows_zip: Path | None = None) -> None:
+    """the client package the launcher (launcher/) installs: the linux game folder (build/game-hl2dm's own files,
+    the libraries without their debug symbols), the mod's jar and fabric api (from modrinth), and manifest.json.
+    windows's game folder comes from a windows build (ci's HalfCraft-client-windows zip): windows_zip."""
+    game = REPO / "build" / "game-hl2dm"
     shutil.rmtree(CLIENT, ignore_errors=True)
     linux = []
-    names = [line.strip().lstrip("\ufeff") for line in listed.read_text(encoding="utf-8-sig").splitlines() if line.strip()]
-    for name in [*names, "gameinfo.txt", "halfcraft-files.txt"]:
+    for name in game_files(game):
         source = game / name
-        if not source.is_file():
-            continue
         target = CLIENT / "game-hl2dm" / name
         target.parent.mkdir(parents=True, exist_ok=True)
         if name.endswith(".so"):
@@ -344,7 +388,7 @@ def package() -> None:
         "minecraft": gradle_property("minecraft_version"),
         "fabric_loader": gradle_property("loader_version"),
         "srcds_port": find(HUB[0])["srcds"],
-        "files": {"any": any_platform, "linux": linux, "windows": []},
+        "files": {"any": any_platform, "linux": linux, "windows": windows_files(windows_zip) if windows_zip else []},
     }
     (CLIENT / "manifest.json").write_text(json.dumps(manifest, indent=1))
     size = sum(f.get("size", 0) for f in linux) // (1 << 20)
@@ -360,7 +404,9 @@ def serve() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="the halfcraft server's network: a hub and every half-life 2 map")
-    parser.add_argument("what", choices=["layout", "start", "ensure", "stop", "status", "idle", "package", "serve"])
+    parser.add_argument("what", choices=["layout", "start", "ensure", "stop", "status", "idle", "package", "serve", "client-zip"])
+    parser.add_argument("--windows-zip", type=Path, help="package: the windows game folder (ci's HalfCraft-client-windows zip)")
+    parser.add_argument("--out", type=Path, help="client-zip: the zip to write")
     parser.add_argument("name", nargs="?")
     parser.add_argument("--srcds", help="the dedicated server's folder (HALFCRAFT_SRCDS)")
     options = parser.parse_args()
@@ -377,7 +423,9 @@ def main() -> None:
     elif options.what == "stop":
         stop([options.name] if options.name else [])
     elif options.what == "package":
-        package()
+        package(options.windows_zip)
+    elif options.what == "client-zip":
+        client_zip(options.out or REPO / "dist" / "HalfCraft-client-windows.zip")
     elif options.what == "serve":
         serve()
     elif options.what == "idle":

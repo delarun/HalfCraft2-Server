@@ -39,6 +39,8 @@ jobs:
         run: python tools/build/build_hl2.py
       - name: Zip
         run: python tools/build/package.py --no-build
+      - name: Server's Windows client (the game folder the launcher installs on Windows)
+        run: python tools/server/network.py client-zip --out dist/HalfCraft-client-windows-${{ inputs.version }}.zip
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: halfcraft-${{ inputs.version }}
@@ -50,3 +52,30 @@ jobs:
         run: python .github/scripts/pinned.py clang-tidy
       - name: make tidy
         run: python tools/lint/tidy.py
+
+  launcher:
+    name: Launcher (Linux and Windows)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache-dependency-path: launcher/go.sum
+      - name: webkit2gtk and mingw-w64
+        run: sudo apt-get update -q && sudo apt-get install -y -q libwebkit2gtk-4.1-dev gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+      - name: make launcher
+        run: make launcher
+      - name: Name them by the version
+        run: |
+          mv dist/halfcraft-launcher dist/halfcraft-launcher-${{ inputs.version }}-linux-x64
+          mv dist/HalfCraft.exe dist/HalfCraft-launcher-${{ inputs.version }}-windows-x64.exe
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: halfcraft-launcher-${{ inputs.version }}
+          path: dist/*launcher*
+          if-no-files-found: error
+          retention-days: 30

@@ -95,7 +95,8 @@ func CheckDeathmatch(folder string) error {
 // ManifestFile is one file of the server's client package.
 type ManifestFile struct {
 	Path   string `json:"path"`   // where it goes, under the launcher's folder ("game-hl2dm/...", "minecraft/mods/...")
-	URL    string `json:"url"`    // where it comes from: an absolute url, or "" for the package's own path
+	URL    string `json:"url"`    // where it comes from: an absolute url, or "" for the package's own file
+	Source string `json:"source"` // that file's path in the package, if it isn't Path (windows/...)
 	Sha256 string `json:"sha256"` // or
 	Sha512 string `json:"sha512"`
 	Size   int64  `json:"size"`
@@ -149,7 +150,11 @@ func SyncPackage(server, root string, m *Manifest, log func(string)) error {
 		}
 		url := f.URL
 		if url == "" {
-			url = packageURL(server) + f.Path
+			source := f.Source
+			if source == "" {
+				source = f.Path
+			}
+			url = packageURL(server) + source
 		}
 		kind, want := "sha256", f.Sha256
 		if f.Sha512 != "" {

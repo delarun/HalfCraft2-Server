@@ -1585,8 +1585,8 @@ namespace
 			return total;
 		};
 		// a flat 4x4 square of ground at y 10.5 (two triangles), facing up
-		const float a[9] = { 0, 10.5f, 0, 0, 10.5f, 4, 4, 10.5f, 0 };
-		const float b[9] = { 4, 10.5f, 0, 0, 10.5f, 4, 4, 10.5f, 4 };
+		const float                       a[9] = { 0, 10.5f, 0, 0, 10.5f, 4, 4, 10.5f, 0 };
+		const float                       b[9] = { 4, 10.5f, 0, 0, 10.5f, 4, 4, 10.5f, 4 };
 		std::vector<std::array<float, 9>> out;
 		subtract_boxes_from_tri(a, {}, out);
 		subtract_boxes_from_tri(b, {}, out);
@@ -1610,16 +1610,16 @@ namespace
 		ColPrimitives::Tri up_a, up_b;
 		std::copy(a, a + 9, up_a.v);
 		std::copy(b, b + 9, up_b.v);
-		const double            origin[3] = { 0, 8, 0 };
-		const GroundColumns     ground(origin, { up_a, up_b });
+		const double        origin[3] = { 0, 8, 0 };
+		const GroundColumns ground(origin, { up_a, up_b });
 		CHECK(ground.under(1.5, 10.0, 1.5));
 		CHECK(ground.under(1.5, 8.1, 1.5));
 		CHECK(!ground.under(1.5, 11.0, 1.5));
 		CHECK(!ground.under(1.5, 10.45, 1.5));  // within GROUND_MARGIN of the surface: open, under the feet
 		CHECK(ground.under(1.5, 10.35, 1.5));
 		CHECK(!ground.under(5.5, 9.0, 1.5));  // off the square
-		const double            deep[3] = { 0, 8.0 - 8.0 * std::ceil(GROUND_DEPTH / 8.0), 0 };
-		const GroundColumns     far(deep, { up_a, up_b });
+		const double        deep[3] = { 0, 8.0 - 8.0 * std::ceil(GROUND_DEPTH / 8.0), 0 };
+		const GroundColumns far(deep, { up_a, up_b });
 		CHECK(far.under(1.5, 10.5 - GROUND_DEPTH + 0.5, 1.5));
 		CHECK(!far.under(1.5, 10.5 - GROUND_DEPTH - 0.5, 1.5));  // deeper than the rock goes
 		// the same square wound the other way faces down: a ceiling, with air under it
@@ -1652,8 +1652,11 @@ namespace
 		// d2_coast_01's jeep, its crane sequence and a scene, as the map's lump has them (outputs with ESC)
 		const std::string lump =
 			"{\n\"classname\" \"prop_vehicle_jeep\"\n\"targetname\" \"jeep\"\n\"VehicleLocked\" \"1\"\n"
-			"\"PlayerOn\" \"jeep_escape_relay\x1bTrigger\x1b\x1b" "0\x1b-1\"\n}\n"
-			"{\n\"classname\" \"logic_auto\"\n\"OnMapSpawn\" \"jeep\x1bTurnOff\x1b\x1b" "0\x1b" "1\"\n"
+			"\"PlayerOn\" \"jeep_escape_relay\x1bTrigger\x1b\x1b"
+			"0\x1b-1\"\n}\n"
+			"{\n\"classname\" \"logic_auto\"\n\"OnMapSpawn\" \"jeep\x1bTurnOff\x1b\x1b"
+			"0\x1b"
+			"1\"\n"
 			"\"OnMapSpawn\" \"cranedriver,SetRelationship,!player D_NU 99,0,1\"\n}\n"
 			"{\n\"classname\" \"logic_relay\"\n\"OnTrigger\" \"JEEP,lock,,0,1\"\n\"OnTrigger\" \"car_hold,Kill,,6,1\"\n}\n"
 			"{\n\"classname\" \"logic_choreographed_scene\"\n\"targetname\" \"scene_1\"\n}\n"
@@ -1664,7 +1667,9 @@ namespace
 		const auto entities = parse(lump);
 		CHECK(entities.size() == 8);
 		CHECK(entities.size() == 8 && value_of(entities[0], "vehiclelocked") == "1");
-		CHECK(output_target("jeep\x1bTurnOff\x1b\x1b" "0\x1b" "1") == std::make_pair(std::string_view("jeep"), std::string_view("TurnOff")));
+		CHECK(output_target("jeep\x1bTurnOff\x1b\x1b"
+							"0\x1b"
+							"1") == std::make_pair(std::string_view("jeep"), std::string_view("TurnOff")));
 		CHECK(output_target("a,b") == std::make_pair(std::string_view("a"), std::string_view("b")));
 		Report     report;
 		const auto kept = apply(entities, report);
@@ -1690,7 +1695,7 @@ namespace
 		// a lump cut short ends the list there
 		CHECK(parse("{\n\"a\" \"b\"\n}\n{\n\"c\" \"d").size() == 1);
 		// a prop draws at any distance: its fade keys go, fadescale 0 comes; a vehicle keeps its own
-		Report faded;
+		Report     faded;
 		const auto props = apply(parse("{\n\"classname\" \"prop_physics\"\n\"fademindist\" \"3000\"\n\"FadeMaxDist\" \"3500\"\n\"fadescale\" \"1\"\n}\n"
 									   "{\n\"classname\" \"prop_dynamic\"\n}\n{\n\"classname\" \"prop_vehicle_jeep\"\n\"fadescale\" \"1\"\n}\n"),
 			faded);

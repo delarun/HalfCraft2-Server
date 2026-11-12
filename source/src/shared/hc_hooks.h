@@ -141,7 +141,6 @@ namespace halfcraft
 	/// (client/hc_dig.h, dig_holes_near).
 	void client_draw_unplaced_blocks(bool translucent);
 
-
 	/// CGameMovement::HalfCraftMove, in prediction, and server.dll's (HC_JUMP_LANDED_EXPORT): source
 	/// took one of minecraft's jumps next to where minecraft put its player, which didn't fit (a pearl
 	/// against a ceiling, a ledge or a wall), or refused it. minecraft's player goes there too (hc_jumps.cpp).

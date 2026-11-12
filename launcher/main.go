@@ -27,6 +27,9 @@ func init() {
 	runtime.LockOSThread()
 }
 
+// gameLink is the link the launcher's games talk on (core/hc_link_names.h): not the default one a developer's use.
+const gameLink = "launcher"
+
 // Version is the launcher's own.
 const Version = "0.1.0"
 
@@ -192,13 +195,15 @@ func (l *Launcher) play() error {
 	os.MkdirAll(filepath.Join(gameDir, "mods"), 0o755)
 	mc := prepared.Command(fresh, gameDir, filepath.Join(l.root, "minecraft", "assets"),
 		[]string{"-Xms512M", "-Xmx4G", "--enable-native-access=ALL-UNNAMED", "-Dhalfcraft.startHidden=true"})
+	// both games on a link of their own: another HalfCraft on this machine (a developer's) keeps to its own
+	mc.Env = append(os.Environ(), "HALFCRAFT_LINK="+gameLink)
 	mcLog, _ := os.Create(filepath.Join(l.root, "minecraft.log"))
 	mc.Stdout, mc.Stderr = mcLog, mcLog
 	l.logf("starting Minecraft")
 	if err := mc.Start(); err != nil {
 		return err
 	}
-	engine, err := EngineCommand(deathmatch, filepath.Join(l.root, "game-hl2dm"), server, manifest.SrcdsPort, nil)
+	engine, err := EngineCommand(deathmatch, filepath.Join(l.root, "game-hl2dm"), server, manifest.SrcdsPort, []string{"-hc_link", gameLink, "-condebug"})
 	if err != nil {
 		mc.Process.Kill()
 		return err

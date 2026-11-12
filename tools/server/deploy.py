@@ -17,7 +17,6 @@ it needs ssh to the machine as root, rsync on both, and java 25 there (apt's ope
 
 import argparse
 import hashlib
-import json
 import os
 import shutil
 import subprocess
@@ -27,6 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools/, where the halfcraft package is
 import network
+
 from halfcraft import REPO, ToolError
 
 TARGET = "/srv/halfcraft"
@@ -37,7 +37,7 @@ FABRIC_INSTALLER = "1.1.0"
 MEMORY = "1536M"  # each pair's minecraft: a 4 GB machine runs the hub and one map
 
 
-def run(command: list[str], **kwargs) -> None:
+def run(command: list[str], **kwargs: object) -> None:
     print("$ " + " ".join(command))
     subprocess.run(command, check=True, **kwargs)
 
@@ -73,7 +73,9 @@ def stage() -> Path:
     server = repo / "minecraft" / "server"
     (server / "mods").mkdir(parents=True)
     shutil.copy2(launcher, server / "fabric-server-launcher.jar")
-    jars = sorted((p for p in (network.MINECRAFT / "build" / "libs").glob("halfcraft-*.jar") if not p.name.endswith("-sources.jar")), key=lambda p: p.stat().st_mtime)
+    jars = sorted(
+        (p for p in (network.MINECRAFT / "build" / "libs").glob("halfcraft-*.jar") if not p.name.endswith("-sources.jar")), key=lambda p: p.stat().st_mtime
+    )
     if not jars:
         raise ToolError("no mod jar in minecraft/build/libs: run gradle jar first")
     shutil.copy2(jars[-1], server / "mods" / "halfcraft.jar")
@@ -82,11 +84,7 @@ def stage() -> Path:
     # the pairs' server.properties come from this one: online mode, players sign in with microsoft
     template = repo / "minecraft" / "run" / "server"
     template.mkdir(parents=True)
-    lines = []
-    for line in (network.TEMPLATE / "server.properties").read_text().splitlines():
-        if line.startswith("online-mode="):
-            line = "online-mode=true"
-        lines.append(line)
+    lines = ["online-mode=true" if line.startswith("online-mode=") else line for line in (network.TEMPLATE / "server.properties").read_text().splitlines()]
     (template / "server.properties").write_text("\n".join(lines) + "\n")
     (template / "eula.txt").write_text("eula=true\n")  # the user accepted minecraft's eula for the dev server
     (template / "ops.json").write_text("[]\n")
@@ -141,12 +139,15 @@ def deploy(host: str, *, code_only: bool) -> None:
     srcds = os.environ.get("HALFCRAFT_SRCDS")
     if not srcds:
         raise ToolError("name this machine's dedicated server folder: HALFCRAFT_SRCDS")
-    remote(host, f"""
+    remote(
+        host,
+        f"""
 set -e
 id halfcraft >/dev/null 2>&1 || useradd --system --home-dir {TARGET} --shell /usr/sbin/nologin halfcraft
 mkdir -p {TARGET}/hl2dm-ds {TARGET}/hl2 {TARGET}/repo/build/server
 systemctl stop halfcraft-network 2>/dev/null || true
-""")
+""",
+    )
     if not code_only:
         rsync(f"{srcds}/", host, f"{TARGET}/hl2dm-ds/", "--exclude=game-hl2dm", "--exclude=hl2c", "--exclude=*.log")
         hl2 = next((Path(p) for p in ["/mnt/data/SteamLibrary/steamapps/common/Half-Life 2", str(Path.home() / ".local/share/Steam/steamapps/common/Half-Life 2")]
@@ -165,7 +166,9 @@ systemctl stop halfcraft-network 2>/dev/null || true
           "--exclude=screenshots", "--exclude=save")  # fmt: skip
     rsync(f"{repo}/", host, f"{TARGET}/repo/", "--exclude=build/server/game-hl2dm", "--exclude=build/network/hub", "--exclude=build/network/d*",
           "--exclude=build/network/players", "--exclude=build/network/*.json")  # fmt: skip
-    remote(host, f"""
+    remote(
+        host,
+        f"""
 set -e
 cd {TARGET}
 ln -sfn {TARGET}/repo/build/server/game-hl2dm hl2dm-ds/game-hl2dm
@@ -187,7 +190,8 @@ systemctl restart halfcraft-package
 sudo -u halfcraft env HALFCRAFT_SRCDS={TARGET}/hl2dm-ds python3 repo/tools/server/network.py layout
 systemctl restart halfcraft-network
 systemctl --no-pager status halfcraft-network halfcraft-package | grep -E "Active|Main PID" || true
-""")
+""",
+    )
     print(f"deployed to {host}:{TARGET}")
 
 
