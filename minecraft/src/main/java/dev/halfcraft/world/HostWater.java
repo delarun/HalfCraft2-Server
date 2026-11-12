@@ -8,6 +8,7 @@ import dev.halfcraft.mobs.HostNav;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.BlockPos;
@@ -50,6 +51,8 @@ public final class HostWater {
 
 	private static volatile WaterColumns.@Nullable Grid grid;
 	private static volatile List<WaterColumns.Grid> probes = List.of();
+	// the halfcraft server's: each player's grid, as their Minecraft sent it (WaterPayload); its probes are these
+	private static final Map<java.util.UUID, WaterColumns.Grid> PLAYER_GRIDS = new ConcurrentHashMap<>();
 	// entity id -> where it wants Half-Life's water probed (client and server ticks alike)
 	private static final ConcurrentHashMap<Integer, WaterColumns.Want> WANTS = new ConcurrentHashMap<>();
 	private static int probesAsked;
@@ -143,7 +146,26 @@ public final class HostWater {
 	}
 
 	public static boolean active() {
-		return grid != null;
+		return grid != null || !probes.isEmpty();
+	}
+
+	/** The client's: the grid around its player, as Half-Life sent it last (null: none yet). */
+	public static WaterColumns.@Nullable Grid playerGrid() {
+		return grid;
+	}
+
+	/**
+	 * The halfcraft server's (WaterPayload): a player's Minecraft sent the grid around them, null when they left. It
+	 * has no Half-Life of its own: the players' grids are its water, so their air, swimming and drowning are the
+	 * server's as their own Minecraft's are, and so are the mobs' and items' around them.
+	 */
+	public static void playerGrid(java.util.UUID player, WaterColumns.@Nullable Grid playerGrid) {
+		if (playerGrid == null) {
+			PLAYER_GRIDS.remove(player);
+		} else {
+			PLAYER_GRIDS.put(player, playerGrid);
+		}
+		probes = List.copyOf(PLAYER_GRIDS.values());
 	}
 
 	/**
@@ -191,7 +213,7 @@ public final class HostWater {
 	 * it, BoatItemMixin), or null when it doesn't; from under the water it never does.
 	 */
 	public static @Nullable Vec3 surfaceAlong(BlockGetter level, Vec3 from, Vec3 to) {
-		if (grid == null) {
+		if (!active()) {
 			return null;
 		}
 		int steps = Math.max(1, (int) Math.ceil(from.distanceTo(to) / RAY_STEP));
@@ -226,7 +248,7 @@ public final class HostWater {
 
 	/** True if Half-Life water reaches up into the box of block cells (inclusive). */
 	public static boolean anyIn(int x0, int y0, int z0, int x1, int y1, int z1) {
-		if (grid == null) {
+		if (!active()) {
 			return false;
 		}
 		for (int x = x0; x <= x1; x++) {
@@ -250,7 +272,7 @@ public final class HostWater {
 
 	/** {@code state}, Minecraft's block at pos, or a water block where it is air in Half-Life's water. */
 	public static BlockState blockOrWater(BlockPos pos, BlockState state) {
-		return grid != null && state.isAir() && depthIn(pos) > 0.0F ? Blocks.WATER.defaultBlockState() : state;
+		return active() && state.isAir() && depthIn(pos) > 0.0F ? Blocks.WATER.defaultBlockState() : state;
 	}
 
 	/** The exact water height in a cell only Half-Life fills (so floating matches its surface); -1 otherwise. */

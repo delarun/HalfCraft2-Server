@@ -96,6 +96,9 @@ public final class WorldExporter {
 	private static final WallCells WALLS = new WallCells(); // what the walls of holes are made from
 	private static final DigWalls.Count NO_WALLS = new DigWalls.Count(0, 0, 0, 0L);
 	private static final float[] WALL_UV = new float[8]; // a wall quad's corners in the atlas
+	private static final float[] WALL_CORNERS = new float[12];
+	// how far a dug cell's wall sits behind its side (blocks; Half-Life's units: 40 a block), against z-fighting
+	private static final float WALL_INSET = 0.02F;
 	private static final List<ProtoStructs.WorldEntity> ENTITIES = new ArrayList<>();
 	private static final ItemStackRenderState ITEM_STATE = new ItemStackRenderState();
 	private static final java.util.Map<Item, float[]> ICONS = new java.util.HashMap<>();
@@ -399,7 +402,18 @@ public final class WorldExporter {
 		BlockPos lit = BlockPos.containing(16 * sx + (corners[0] + corners[6]) * 0.5 + 0.5 * normal.getStepX(), 16 * sy + (corners[1] + corners[7]) * 0.5 + 0.5 * normal.getStepY(),
 			16 * sz + (corners[2] + corners[8]) * 0.5 + 0.5 * normal.getStepZ());
 		int light = LightCoordsUtil.pack(level.getBrightness(LightLayer.BLOCK, lit), level.getBrightness(LightLayer.SKY, lit));
-		MESH.quad(corners, WALL_UV, light, normal);
+		// a wall on the cell's side often lies in the plane of Half-Life's own surface there (a floor on the grid, a wall
+		// face), which isn't cut where the cell next to it is rock: the two fought for the same depth, the stone showing
+		// through the ground in patches. Each corner moves a little away from the dug cell's middle, into the rock: the
+		// wall sits behind Half-Life's surface where that still shows, and grows by as much along it, so the walls'
+		// seams still overlap
+		int cx = lit.getX() - 16 * sx, cy = lit.getY() - 16 * sy, cz = lit.getZ() - 16 * sz;
+		for (int k = 0; k < 12; k += 3) {
+			WALL_CORNERS[k] = corners[k] + WALL_INSET * Math.signum(corners[k] - (cx + 0.5F));
+			WALL_CORNERS[k + 1] = corners[k + 1] + WALL_INSET * Math.signum(corners[k + 1] - (cy + 0.5F));
+			WALL_CORNERS[k + 2] = corners[k + 2] + WALL_INSET * Math.signum(corners[k + 2] - (cz + 0.5F));
+		}
+		MESH.quad(WALL_CORNERS, WALL_UV, light, normal);
 	}
 
 	/** Nanoseconds as milliseconds, for the log. */
