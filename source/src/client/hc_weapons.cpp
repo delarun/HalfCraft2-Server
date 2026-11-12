@@ -1,11 +1,13 @@
 // client.dll: half-life's weapons as minecraft items (see hc_weapons.h).
 
 #include "cbase.h"
+#include "ammodef.h"
 #include "c_baseplayer.h"
 #include "cdll_client_int.h"
 #include "iclientmode.h"
 #include "in_buttons.h"
 #include "inputsystem/iinputsystem.h"
+#include "inetchannelinfo.h"
 #include "usercmd.h"
 #include "view_shared.h"
 
@@ -14,6 +16,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <vector>
 
 #include "client/hc_client.h"
@@ -40,6 +43,61 @@ namespace halfcraft
 		{
 			const char* classname = weapon_classname(id);
 			return classname ? classname : "nothing";
+		}
+
+		proto::WeaponTable g_remote_sent{};  // the table written for another machine's server, last
+		bool               g_remote_written = false;
+
+		/// whether the player plays on another machine's source server (a halfcraft server): no server.dll in this
+		/// process writes their weapon table
+		bool on_remote_server()
+		{
+			INetChannelInfo* channel = engine->GetNetChannelInfo();
+			return channel && !channel->IsLoopback();
+		}
+
+		/// on another machine's server, the weapon table server.dll writes in a single player's game, from what the
+		/// server sends this player of their own weapons and ammo: minecraft's items (and its server, HostWeapons)
+		/// and this side's live_weapons go by it. the weapon out is the predicted one, which a switch the server
+		/// refuses (the rpg's rocket in flight) puts ahead of the server's by a moment.
+		void write_remote_table(ClientSession& session, C_BasePlayer* player)
+		{
+			proto::WeaponTable table{};
+			if (player->IsAlive()) {
+				table.flags = proto::kWeaponTableLive;
+				for (int i = 0; i < player->WeaponCount() && table.count < proto::kMaxHostWeapons; ++i) {
+					C_BaseCombatWeapon* weapon = player->GetWeapon(i);
+					const std::uint32_t id = weapon ? weapon_id(weapon->GetName()) : proto::kHostWeaponNone;
+					if (id == proto::kHostWeaponNone) {
+						continue;
+					}
+					proto::WeaponRecord& record = table.weapons[table.count++];
+					record.id = id;
+					const bool clip = weapon->UsesClipsForAmmo1();
+					record.clip = clip ? weapon->Clip1() : -1;
+					record.maxClip = clip ? weapon->GetMaxClip1() : -1;
+					record.ammo = record.maxAmmo = record.ammo2 = record.maxAmmo2 = -1;
+					if (weapon->UsesPrimaryAmmo()) {
+						record.ammo = player->GetAmmoCount(weapon->GetPrimaryAmmoType());
+						record.maxAmmo = GetAmmoDef()->MaxCarry(weapon->GetPrimaryAmmoType());
+					}
+					if (weapon->UsesSecondaryAmmo()) {
+						record.ammo2 = player->GetAmmoCount(weapon->GetSecondaryAmmoType());
+						record.maxAmmo2 = GetAmmoDef()->MaxCarry(weapon->GetSecondaryAmmoType());
+					}
+				}
+				C_BaseCombatWeapon* active = player->GetActiveWeapon();
+				table.active = active ? weapon_id(active->GetName()) : proto::kHostWeaponNone;
+			}
+			if (g_remote_written && !std::memcmp(&table, &g_remote_sent, sizeof(table))) {
+				return;
+			}
+			if (!g_remote_written || table.count != g_remote_sent.count || table.flags != g_remote_sent.flags) {
+				log_info("weapons: the server gives this player %u weapons (%s out)", table.count, name_of(table.active));
+			}
+			session.link.write_weapons(table);
+			g_remote_sent = table;
+			g_remote_written = true;
 		}
 
 		/// server.dll's weapon table, when it has a player. the weapon really out is its active one: the
@@ -117,6 +175,9 @@ namespace halfcraft
 		C_BasePlayer* player = C_BasePlayer::GetLocalPlayer();
 		if (!player || !session.have_mc || !session.mc_in_world) {
 			return;
+		}
+		if (on_remote_server()) {
+			write_remote_table(session, player);
 		}
 		proto::WeaponTable  table{};
 		const bool          live = live_weapons(session, table);

@@ -8,16 +8,21 @@ import net.minecraft.client.Minecraft;
 
 /**
  * On the HalfCraft server, this Minecraft tells the server which Source player it is (HostState's sourceUserId, which
- * client.dll writes): the server's hurts, heals and deaths then reach the right player (ServerPlayers).
+ * client.dll writes): the server's hurts, heals and deaths then reach the right player (ServerPlayers). And it tells
+ * it their Half-Life weapons as client.dll writes them (WeaponsPayload), for the stand-ins in their inventory.
  */
 final class ServerIdentity {
 	private static int sent;
+	private static dev.halfcraft.weapon.@org.jspecify.annotations.Nullable WeaponsPayload weaponsSent;
 
 	private ServerIdentity() {
 	}
 
 	static void init() {
-		ClientPlayConnectionEvents.JOIN.register((handler, sender, minecraft) -> sent = 0);
+		ClientPlayConnectionEvents.JOIN.register((handler, sender, minecraft) -> {
+			sent = 0;
+			weaponsSent = null;
+		});
 		ClientTickEvents.END_CLIENT_TICK.register(ServerIdentity::tick);
 	}
 
@@ -30,6 +35,13 @@ final class ServerIdentity {
 		if (userId != sent) {
 			sent = userId;
 			ClientPlayNetworking.send(new ServerPlayers.SourcePlayerPayload(userId));
+		}
+		if (ClientPlayNetworking.canSend(dev.halfcraft.weapon.WeaponsPayload.TYPE)) {
+			var weapons = dev.halfcraft.weapon.WeaponsPayload.of(dev.halfcraft.link.WeaponTable.current());
+			if (!weapons.equals(weaponsSent)) {
+				weaponsSent = weapons;
+				ClientPlayNetworking.send(weapons);
+			}
 		}
 	}
 }

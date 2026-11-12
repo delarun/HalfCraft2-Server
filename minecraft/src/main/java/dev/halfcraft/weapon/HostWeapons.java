@@ -74,6 +74,18 @@ public final class HostWeapons {
 	}
 
 	private static void serverTick(MinecraftServer server) {
+		if (dev.halfcraft.link.HostSide.dedicated() != null) {
+			// the halfcraft server: each player's own weapons, as their Minecraft says (WeaponsPayload)
+			for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+				WeaponTable table = WeaponsPayload.tableOf(player);
+				if (table.live() && player.isAlive() && !player.isSpectator()) {
+					int held = weaponId(player.getInventory().getSelectedItem());
+					sync(player, table.weapons().stream().mapToInt(WeaponTable.Weapon::id).filter(ITEMS::containsKey).toArray());
+					followHalfLife(player, table, held);
+				}
+			}
+			return;
+		}
 		WeaponTable table = WeaponTable.current();
 		if (!table.live()) {
 			return;  // no Half-Life player right now (a menu, a loading screen): the items stay as they are
