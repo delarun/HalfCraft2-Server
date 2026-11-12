@@ -9,7 +9,7 @@ namespace halfcraft::proto
 {
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	inline constexpr std::uint32_t kLayout = 0xC9293CF1;
+	inline constexpr std::uint32_t kLayout = 0xE009C1A1;
 
 	// ---- where each part of the mapping is ----------------------------------------------------------
 	inline constexpr std::uint64_t kOffHeader = 0x00;
@@ -431,7 +431,7 @@ namespace halfcraft::proto
 	enum McEventType : std::uint32_t
 	{
 		kEvHitActor = 1,    // actorId, a = MC damage (after MC's own modifiers), b/c = knockback dir x/z (MC), d = knockback strength
-		kEvPlayerDied = 2,  // the Minecraft player died: kill the host's player
+		kEvPlayerDied = 2,  // the Minecraft player died: kill the host's player (the halfcraft server's: playerId's)
 		// a Minecraft explosion (TNT, creeper, ...): a/b/c = centre (MC coords), d = radius (blocks),
 		// attackerId = the Minecraft entity id of the mob that set it off (a creeper); 0: nobody (TNT)
 		kEvExplosion = 3,
@@ -506,7 +506,10 @@ namespace halfcraft::proto
 		// (#13) kEvHitActor: the Minecraft entity id of the mob that landed it; 0: the player.
 		// kEvExplosion: the mob that set it off
 		std::uint32_t attackerId;
-		std::uint32_t reserved[3];
+		// the halfcraft server's (a server link): kEvHitActor, the Source userid of the player who
+		// landed it, or whose pet or arrow did (0: none known); kEvPlayerDied, the player who died
+		std::uint32_t playerId;
+		std::uint32_t reserved[2];
 	};
 	static_assert(sizeof(McEvent) == 0x30);
 

@@ -168,11 +168,11 @@ public final class ServerLink implements CollisionSource {
 
 	@Override
 	public void lost() {
-		this.pushEvent(EV_COLLISION_LOST, 0, 0.0F, 0.0F, 0.0F, 0.0F, 0, 0, 0);
+		this.pushEvent(EV_COLLISION_LOST, 0, 0.0F, 0.0F, 0.0F, 0.0F, 0, 0, 0, 0);
 	}
 
 	/** Queues an event for server.so, as HostLink.pushEvent does for a client's Half-Life. Any thread. */
-	public synchronized void pushEvent(int type, int actorId, float a, float b, float c, float d, int flags, int weapon, int attackerId) {
+	public synchronized void pushEvent(int type, int actorId, float a, float b, float c, float d, int flags, int weapon, int attackerId, int playerId) {
 		MemorySegment s = this.shm;
 		if (s == null) {
 			return;
@@ -184,7 +184,7 @@ public final class ServerLink implements CollisionSource {
 			return;
 		}
 		long e = base + ER_DATA + (head & (EVENT_RING_ENTRIES - 1)) * EVENT_BYTES;
-		new ProtoStructs.McEvent(type, actorId, a, b, c, d, flags, weapon, attackerId).write(s, e);
+		new ProtoStructs.McEvent(type, actorId, a, b, c, d, flags, weapon, attackerId, playerId).write(s, e);
 		LONG.setRelease(s, base + ER_HEAD, head + 1);
 	}
 }

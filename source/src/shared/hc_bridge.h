@@ -89,10 +89,21 @@ namespace halfcraft
 
 	inline constexpr char HC_PUSH_INPUT_EXPORT[] = "HalfCraft_PushInput";
 
+	/// a dedicated server's server.so: where client_push_input's events go instead, its server link's input ring
+	/// (hc_vitals' set_dedicated_link). per module, as each module has its own copy of this function's static.
+	inline PushInputFn& dedicated_push_input()
+	{
+		static PushInputFn push_input = nullptr;
+		return push_input;
+	}
+
 	/// server.dll's way to client.dll's PushInputFn, looked up until client.dll has it.
 	/// @return nullptr while it doesn't: an event then goes nowhere
 	inline PushInputFn client_push_input()
 	{
+		if (const PushInputFn dedicated = dedicated_push_input()) {
+			return dedicated;
+		}
 		static PushInputFn push_input = nullptr;
 		if (!push_input) {
 			push_input = reinterpret_cast<PushInputFn>(find_export("client.dll", HC_PUSH_INPUT_EXPORT));

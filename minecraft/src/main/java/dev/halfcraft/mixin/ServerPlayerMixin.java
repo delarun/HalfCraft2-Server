@@ -30,10 +30,10 @@ public abstract class ServerPlayerMixin {
 		ServerPlayer self = (ServerPlayer) (Object) this;
 		dev.halfcraft.link.ServerLink server = dev.halfcraft.link.HostSide.dedicated();
 		if (server != null) {
-			// the halfcraft server's player: their source player dies too (flags: their userid)
+			// the halfcraft server's player: their source player dies too (playerId: their userid)
 			int userId = dev.halfcraft.link.ServerPlayers.userId(self);
 			if (userId > 0) {
-				server.pushEvent(Proto.EV_PLAYER_DIED, HostCombat.attackerActorId(source), 0, 0, 0, 0, userId, 0, 0);
+				server.pushEvent(Proto.EV_PLAYER_DIED, HostCombat.attackerActorId(source), 0, 0, 0, 0, 0, 0, 0, userId);
 				HalfCraft.LOG.info("HalfCraft: {} (source player {}) died ({}); telling the source server", self.getName().getString(), userId, source.getMsgId());
 			}
 			return;

@@ -50,6 +50,15 @@ namespace halfcraft
 	void set_dedicated_link(Link* link)
 	{
 		g_dedicated_link = link;
+		// the world's events (blasts, bullets into blocks, the gravity gun's blocks, hurt mobs) go to the halfcraft
+		// server's minecraft as a single player's go to its own: for no player in particular (kInFor 0)
+		dedicated_push_input() = link ? +[](int type, int code, int a, int b, int c) {
+			if (g_dedicated_link) {
+				g_dedicated_link->push_input(proto::kInFor, 0, 0);
+				g_dedicated_link->push_input(static_cast<proto::InputType>(type), static_cast<std::uint16_t>(code), a, b, c);
+			}
+		}
+									  : nullptr;
 	}
 
 	Link* dedicated_link()

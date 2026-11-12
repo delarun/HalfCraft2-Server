@@ -40,6 +40,7 @@ public class HostActorEntity extends LivingEntity {
 	private double pushX, pushZ;
 	private float pushStrength;
 	private boolean hitThisTick;
+	private int pendingPlayer; // the Source userid of the player who hit last this tick (the halfcraft server's), 0: none
 	// This tick's hits by Minecraft's own mobs (a pet, a monster fighting back), one per mob: Half-Life
 	// blames each on that mob's stand-in, not on the player (HostMobs sends them)
 	private final java.util.Map<Integer, MobHit> mobHits = new java.util.LinkedHashMap<>();
@@ -53,10 +54,14 @@ public class HostActorEntity extends LivingEntity {
 		public int weapon;
 		public double pushX, pushZ;
 		public float pushStrength;
+		public final int playerId; // the Source userid of its owner (a pet's), 0: none
 
 		MobHit(Mob attacker) {
 			this.attackerId = attacker.getId();
 			this.attackerName = attacker.getName().getString();
+			this.playerId = attacker instanceof net.minecraft.world.entity.OwnableEntity pet && pet.getOwner() instanceof net.minecraft.server.level.ServerPlayer owner
+				? dev.halfcraft.link.ServerPlayers.userId(owner)
+				: 0;
 		}
 	}
 
@@ -124,6 +129,9 @@ public class HostActorEntity extends LivingEntity {
 		this.pendingDamage += dmg;
 		this.pendingFlags |= hitFlags(source);
 		this.pendingWeapon = weaponClass(source);
+		if (source.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+			this.pendingPlayer = dev.halfcraft.link.ServerPlayers.userId(player); // an arrow's too: its shooter
+		}
 		this.hitThisTick = true;
 		this.getCombatTracker().recordDamage(source, dmg);
 	}
@@ -193,13 +201,14 @@ public class HostActorEntity extends LivingEntity {
 		return Proto.WEAPON_BLUNT;
 	}
 
-	/** Returns this tick's hit (damage, flags, push, weapon) and clears it; null if nothing hit us. */
+	/** Returns this tick's hit (damage, push x/z/strength, flags, weapon, player: int bits) and clears it; null if nothing hit us. */
 	public float[] takeHit() {
 		if (!this.hitThisTick) {
 			return null;
 		}
 		float[] hit = { this.pendingDamage, (float) this.pushX, (float) this.pushZ, this.pushStrength, Float.intBitsToFloat(this.pendingFlags),
-			Float.intBitsToFloat(this.pendingWeapon) };
+			Float.intBitsToFloat(this.pendingWeapon), Float.intBitsToFloat(this.pendingPlayer) };
+		this.pendingPlayer = 0;
 		this.pendingDamage = 0.0F;
 		this.pendingFlags = 0;
 		this.pushX = this.pushZ = 0.0;

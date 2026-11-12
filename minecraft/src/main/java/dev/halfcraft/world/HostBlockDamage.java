@@ -142,7 +142,8 @@ public final class HostBlockDamage {
 	private static @Nullable ServerLevel mirror(MinecraftServer server) {
 		ServerPlayer host = HostPlayers.host(server);
 		if (host == null) {
-			return null;
+			// the halfcraft server has no host: its source servers' world is the overworld
+			return dev.halfcraft.link.HostSide.dedicated() != null ? server.overworld() : null;
 		}
 		ServerLevel level = host.level();
 		return HostNav.inMirror(level) ? level : null;

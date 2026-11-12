@@ -77,11 +77,16 @@ public final class HostMobs {
 		HostWater.endTick();
 		// the mobs near the host's player (not the first in the list, which a respawned host isn't); guests' are M2
 		ServerPlayer host = HostPlayers.host(server);
-		if (!dev.halfcraft.link.HostSide.active() || host == null) {
+		boolean dedicated = dev.halfcraft.link.HostSide.dedicated() != null;
+		if (!dev.halfcraft.link.HostSide.active() || (host == null && !dedicated)) {
 			NEARBY.clear();
-		} else {
+		} else if (host != null) {
 			sendMobHits();
-			collect(host);
+			collect(java.util.List.of(host));
+		} else {
+			// the halfcraft server: the mobs near any of its players
+			sendMobHits();
+			collect(server.getPlayerList().getPlayers().stream().filter(p -> HostNav.inMirror(p.level()) && !p.isSpectator()).toList());
 		}
 		writeTable(NEARBY);
 	}
@@ -107,15 +112,20 @@ public final class HostMobs {
 		return flags;
 	}
 
-	private static void collect(ServerPlayer player) {
+	/** The mobs near the players, nearest to any of them first. */
+	private static void collect(List<ServerPlayer> players) {
 		NEARBY.clear();
-		NEARBY.addAll(player.level().getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(RANGE), mob -> mob.isAlive() && flags(mob) != 0));
-		NEARBY.sort(Comparator.comparingDouble(mob -> mob.distanceToSqr(player)));
+		java.util.Set<Mob> found = new java.util.HashSet<>();
+		for (ServerPlayer player : players) {
+			found.addAll(player.level().getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(RANGE), mob -> mob.isAlive() && flags(mob) != 0));
+		}
+		NEARBY.addAll(found);
+		NEARBY.sort(Comparator.comparingDouble(mob -> players.stream().mapToDouble(mob::distanceToSqr).min().orElse(0.0)));
 	}
 
 	/** Seqlock write of the mob table (see MobTable in the protocol header). */
 	private static void writeTable(List<Mob> mobs) {
-		MemorySegment s = HostLink.segment();
+		MemorySegment s = dev.halfcraft.link.HostSide.segment();
 		if (s == null) {
 			return;
 		}
@@ -143,7 +153,7 @@ public final class HostMobs {
 		for (HostActorEntity proxy : HostCombat.proxies()) {
 			for (HostActorEntity.MobHit hit : proxy.takeMobHits()) {
 				dev.halfcraft.link.HostSide.pushEvent(EV_HIT_ACTOR, proxy.actorId(), hit.damage, (float) hit.pushX, (float) hit.pushZ, hit.pushStrength, hit.flags, hit.weapon,
-					hit.attackerId);
+					hit.attackerId, hit.playerId);
 				HalfCraft.LOG.info("HalfCraft: {} (mob {}) hit {} for {} (knockback {})", hit.attackerName, hit.attackerId, proxy.getName().getString(), hit.damage,
 					hit.pushStrength);
 			}
@@ -160,17 +170,27 @@ public final class HostMobs {
 	 */
 	public static void hurtFromHost(@Nullable MinecraftServer server, int kind, int mobId, float hostDamage, int attackerId) {
 		if (server != null && hostDamage > 0.0F) {
-			server.execute(() -> hurt(server, kind, mobId, hostDamage, attackerId));
+			server.execute(() -> hurt(server, kind, mobId, hostDamage, attackerId, HostPlayers.host(server)));
 		}
 	}
 
-	private static void hurt(MinecraftServer server, int kind, int mobId, float hostDamage, int attackerId) {
-		// Half-Life's hits are the host's: the attacker and the level are the host's player's
-		ServerPlayer player = HostPlayers.host(server);
-		if (player == null) {
+	/**
+	 * The halfcraft server's (ServerPlayers): Half-Life hurt one of its mobs, on its server thread.
+	 *
+	 * @param striker the player who struck (MOB_ATTACKER_PLAYER), null for none
+	 */
+	public static void hurtOnServer(MinecraftServer server, int kind, int mobId, float hostDamage, int attackerId, @Nullable ServerPlayer striker) {
+		if (hostDamage > 0.0F) {
+			hurt(server, kind, mobId, hostDamage, attackerId, striker);
+		}
+	}
+
+	private static void hurt(MinecraftServer server, int kind, int mobId, float hostDamage, int attackerId, @Nullable ServerPlayer player) {
+		// Half-Life's hits are the host's (the halfcraft server's: the striker's, or nobody's in the mirror world)
+		if (player == null && (attackerId == MOB_ATTACKER_PLAYER || dev.halfcraft.link.HostSide.dedicated() == null)) {
 			return;
 		}
-		ServerLevel level = player.level();
+		ServerLevel level = player != null ? player.level() : server.overworld();
 		if (!(level.getEntity(mobId) instanceof Mob mob) || !mob.isAlive()) {
 			return;
 		}

@@ -359,10 +359,19 @@ namespace halfcraft
 		}
 	}
 
-	void BlockSolids::update()
+	void BlockSolids::update(const std::vector<SolidSection>* relayed)
 	{
 		free_dead_collides(false);
 		debug_draw();
+		if (relayed) {
+			for (const SolidSection& section : *relayed) {
+				apply(section);
+			}
+			if (!relayed->empty()) {
+				log_info("block collision: %zu section(s) changed, %d in this map", relayed->size(), static_cast<int>(entities_.size()));
+			}
+			return;
+		}
 		if (!solids_since_) {
 			solids_since_ = reinterpret_cast<SolidsSinceFn>(find_export("client.dll", HC_SOLIDS_EXPORT));
 			if (!solids_since_) {

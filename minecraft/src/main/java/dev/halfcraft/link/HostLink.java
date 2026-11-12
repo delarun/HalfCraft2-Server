@@ -411,7 +411,7 @@ public final class HostLink {
 			return;
 		}
 		long e = base + ER_DATA + (head & (EVENT_RING_ENTRIES - 1)) * EVENT_BYTES;
-		new ProtoStructs.McEvent(type, actorId, a, b, c, d, flags, weapon, attackerId).write(s, e);
+		new ProtoStructs.McEvent(type, actorId, a, b, c, d, flags, weapon, attackerId, 0).write(s, e);
 		LONG.setRelease(s, base + ER_HEAD, head + 1);
 	}
 

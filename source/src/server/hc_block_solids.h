@@ -31,7 +31,9 @@ namespace halfcraft
 		/// a new map: the old entities went with it; everything is asked for again.
 		void reset(MapSlot slot);
 		/// once per frame: picks up what changed in client.dll and updates the entities.
-		void update();
+		/// @param relayed - a dedicated server's: the sections the halfcraft server's minecraft wrote into the server
+		///                  link this frame (take_relayed); nullptr: client.dll's (HalfCraft_SolidsSince)
+		void update(const std::vector<SolidSection>* relayed = nullptr);
 
 	private:
 		void apply(const SolidSection& section);

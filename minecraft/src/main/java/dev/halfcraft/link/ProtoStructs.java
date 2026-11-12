@@ -415,7 +415,8 @@ public final class ProtoStructs {
 	//   type: McEventType
 	//   weapon: HitWeapon for EV_HIT_ACTOR
 	//   attackerId: (#13) EV_HIT_ACTOR: the Minecraft entity id of the mob that landed it; 0: the player. EV_EXPLOSION: the mob that set it off
-	public record McEvent(int type, int actorId, float a, float b, float c, float d, int flags, int weapon, int attackerId) {
+	//   playerId: the halfcraft server's (a server link): EV_HIT_ACTOR, the Source userid of the player who landed it, or whose pet or arrow did (0: none known); EV_PLAYER_DIED, the player who died
+	public record McEvent(int type, int actorId, float a, float b, float c, float d, int flags, int weapon, int attackerId, int playerId) {
 		public static McEvent read(MemorySegment s, long at) {
 			int type = s.get(JAVA_INT, at + MC_EVENT_TYPE);
 			int actorId = s.get(JAVA_INT, at + MC_EVENT_ACTOR_ID);
@@ -426,7 +427,8 @@ public final class ProtoStructs {
 			int flags = s.get(JAVA_INT, at + MC_EVENT_FLAGS);
 			int weapon = s.get(JAVA_INT, at + MC_EVENT_WEAPON);
 			int attackerId = s.get(JAVA_INT, at + MC_EVENT_ATTACKER_ID);
-			return new McEvent(type, actorId, a, b, c, d, flags, weapon, attackerId);
+			int playerId = s.get(JAVA_INT, at + MC_EVENT_PLAYER_ID);
+			return new McEvent(type, actorId, a, b, c, d, flags, weapon, attackerId, playerId);
 		}
 
 		public void write(MemorySegment s, long at) {
@@ -439,7 +441,8 @@ public final class ProtoStructs {
 			s.set(JAVA_INT, at + MC_EVENT_FLAGS, this.flags);
 			s.set(JAVA_INT, at + MC_EVENT_WEAPON, this.weapon);
 			s.set(JAVA_INT, at + MC_EVENT_ATTACKER_ID, this.attackerId);
-			s.asSlice(at + 0x24, 12).fill((byte) 0); // reserved
+			s.set(JAVA_INT, at + MC_EVENT_PLAYER_ID, this.playerId);
+			s.asSlice(at + 0x28, 8).fill((byte) 0); // reserved
 		}
 	}
 

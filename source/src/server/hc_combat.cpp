@@ -301,7 +301,24 @@ namespace halfcraft
 			case proto::kEvHitActor: {
 				const auto   found = g_actors.find(event.actorId);
 				CBaseEntity* target = found != g_actors.end() ? found->second.Get() : nullptr;
-				apply_hit(target ? nearest(target->GetAbsOrigin()) : players.front(), event);
+				// the player who struck (their userid in the event), else the one nearest the target
+				CBasePlayer* striker = nullptr;
+				for (CBasePlayer* player : players) {
+					if (event.playerId != 0 && player->GetUserID() == static_cast<int>(event.playerId)) {
+						striker = player;
+					}
+				}
+				apply_hit(striker ? striker : target ? nearest(target->GetAbsOrigin())
+													 : players.front(),
+					event);
+				break;
+			}
+			case proto::kEvExplosion: {
+				// minecraft's blast, blamed on the player nearest it for half-life's friends (every player's own
+				// minecraft took its damage)
+				float centre[3];
+				mc_to_source(event.a, event.b, event.c, slot, centre);
+				apply_explosion(nearest(Vector(centre[0], centre[1], centre[2])), event, slot);
 				break;
 			}
 			case proto::kEvArrowStuck:
@@ -314,9 +331,9 @@ namespace halfcraft
 				collision_lost_ = true;
 				break;
 			case proto::kEvPlayerDied:
-				// a player's minecraft player died: so do they (flags: their source userid)
+				// a player's minecraft player died: so do they (playerId: their source userid)
 				for (CBasePlayer* player : players) {
-					if (player->GetUserID() == static_cast<int>(event.flags) && player->IsAlive()) {
+					if (player->GetUserID() == static_cast<int>(event.playerId) && player->IsAlive()) {
 						log_info("player %d's minecraft player died: so do they", player->GetUserID());
 						g_killing_player = true;
 						player->TakeDamage(CTakeDamageInfo(GetWorldEntity(), GetWorldEntity(), player->GetHealth() + 100.0f, DMG_GENERIC));
@@ -324,8 +341,11 @@ namespace halfcraft
 					}
 				}
 				break;
+			case proto::kEvHeldBlock:
+				held_block_news_.push_back(event);  // the gravity gun's blocks, whoever holds them
+				break;
 			default:
-				break;  // explosions, the gravity gun's blocks: later
+				break;
 			}
 		}
 	}

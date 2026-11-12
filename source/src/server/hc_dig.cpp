@@ -47,40 +47,56 @@ namespace halfcraft
 		outlined_ = false;
 	}
 
-	void DigState::update(CollisionStreamer* streamer, Link* server_link)
+	void DigState::update(CollisionStreamer* streamer, const std::vector<DugSection>* relayed)
 	{
-		if (server_link) {
-			take_messages(*server_link, streamer);
+		if (relayed) {
+			if (!relayed->empty()) {
+				changes_ = *relayed;
+				apply_changes(static_cast<int>(changes_.size()), streamer);
+			}
 		} else {
 			take_changes(streamer);
 		}
 		outline();
 	}
 
-	void DigState::take_messages(Link& link, CollisionStreamer* streamer)
+	void take_relayed(Link& link, std::vector<DugSection>& dug, std::vector<SolidSection>& solids)
 	{
-		changes_.clear();
+		dug.clear();
+		solids.clear();
 		link.drain_render(
 			[&](std::uint32_t type, const std::uint8_t* payload, std::uint32_t bytes) {
-				if (type != proto::kRenDug || bytes < sizeof(proto::RenDug)) {
-					return;
+				if (type == proto::kRenDug && bytes >= sizeof(proto::RenDug)) {
+					proto::RenDug header;
+					std::memcpy(&header, payload, sizeof(header));
+					DugSection section{};
+					section.sx = header.sx;
+					section.sy = header.sy;
+					section.sz = header.sz;
+					if (header.count > 0 && sizeof(header) + sizeof(section.bits) <= bytes) {
+						section.count = header.count;
+						std::memcpy(section.bits, payload + sizeof(header), sizeof(section.bits));
+					}
+					dug.push_back(section);
+				} else if (type == proto::kRenSolids && bytes >= sizeof(proto::RenSolids)) {
+					// as client.dll's hc_blocks reads its own ring's: the solid bits, then the takeable ones
+					proto::RenSolids header;
+					std::memcpy(&header, payload, sizeof(header));
+					SolidSection section{};
+					section.sx = header.sx;
+					section.sy = header.sy;
+					section.sz = header.sz;
+					if (header.count > 0 && sizeof(header) + sizeof(section.bits) <= bytes) {
+						section.count = header.count;
+						std::memcpy(section.bits, payload + sizeof(header), sizeof(section.bits));
+						if (sizeof(header) + sizeof(section.bits) + sizeof(section.takeable) <= bytes) {
+							std::memcpy(section.takeable, payload + sizeof(header) + sizeof(section.bits), sizeof(section.takeable));
+						}
+					}
+					solids.push_back(section);
 				}
-				proto::RenDug header;
-				std::memcpy(&header, payload, sizeof(header));
-				DugSection section{};
-				section.sx = header.sx;
-				section.sy = header.sy;
-				section.sz = header.sz;
-				if (header.count > 0 && sizeof(header) + sizeof(section.bits) <= bytes) {
-					section.count = header.count;
-					std::memcpy(section.bits, payload + sizeof(header), sizeof(section.bits));
-				}
-				changes_.push_back(section);
 			},
 			1u << 20);
-		if (!changes_.empty()) {
-			apply_changes(static_cast<int>(changes_.size()), streamer);
-		}
 	}
 
 	void DigState::take_changes(CollisionStreamer* streamer)

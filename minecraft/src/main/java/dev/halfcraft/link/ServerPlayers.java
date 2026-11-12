@@ -75,7 +75,7 @@ public final class ServerPlayers {
 		return USER_IDS.getOrDefault(player.getUUID(), 0);
 	}
 
-	/** The server, each tick: server.so's hurts and heals, and the players' health for it. */
+	/** The server, each tick: server.so's hurts and heals, the world's events (blasts, bullets, mobs hurt, the gravity gun's blocks), and the players' health for it. */
 	public static void tick(MinecraftServer server, ServerLink link) {
 		link.drainInput((type, code, a, b, c) -> {
 			switch (type) {
@@ -97,6 +97,14 @@ public final class ServerPlayers {
 						HostCombat.healPlayer(player, code, a / 100.0F);
 					}
 				}
+				// the world's: as a single player's InputBridge hands them to its integrated server
+				case Proto.IN_HURT_MOB -> dev.halfcraft.mobs.HostMobs.hurtOnServer(server, code, a, b / 100.0F, c, target(server));
+				case Proto.IN_BLAST -> dev.halfcraft.world.HostBlockDamage.blast(server, dev.halfcraft.combat.HostHurts.coordinate(a),
+					dev.halfcraft.combat.HostHurts.coordinate(b), dev.halfcraft.combat.HostHurts.coordinate(c), code / 100.0F);
+				case Proto.IN_BULLET_HIT -> dev.halfcraft.world.HostBlockDamage.bulletHit(server, new net.minecraft.core.BlockPos(a, b, c));
+				case Proto.IN_TAKE_BLOCK -> dev.halfcraft.world.HeldBlocks.take(server, code, new net.minecraft.core.BlockPos(a, b, c));
+				case Proto.IN_HELD_BLOCK_LANDED -> dev.halfcraft.world.HeldBlocks.landed(server, code, new net.minecraft.core.BlockPos(a, b, c));
+				case Proto.IN_HELD_BLOCK_LOST -> dev.halfcraft.world.HeldBlocks.lost(server, code, new net.minecraft.core.BlockPos(a, b, c));
 				default -> {
 				}
 			}

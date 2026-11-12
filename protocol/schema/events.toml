@@ -18,7 +18,7 @@ note = "6-7: kept for #12 (the host's weapons), 8-9 for #13 (Minecraft's mobs), 
 
 [enums.McEventType.items]
 kEvHitActor = { value = 1, doc = "actorId, a = MC damage (after MC's own modifiers), b/c = knockback dir x/z (MC), d = knockback strength" }
-kEvPlayerDied = { value = 2, doc = "the Minecraft player died: kill the host's player" }
+kEvPlayerDied = { value = 2, doc = "the Minecraft player died: kill the host's player (the halfcraft server's: playerId's)" }
 kEvExplosion = { value = 3, doc = """
 a Minecraft explosion (TNT, creeper, ...): a/b/c = centre (MC coords), d = radius (blocks),
 attackerId = the Minecraft entity id of the mob that set it off (a creeper); 0: nobody (TNT)""" }
@@ -99,4 +99,7 @@ weapon = { type = "u32", doc = "HitWeapon for kEvHitActor" }
 attackerId = { type = "u32", doc = """
 (#13) kEvHitActor: the Minecraft entity id of the mob that landed it; 0: the player.
 kEvExplosion: the mob that set it off""" }
-reserved = "u32[3]"
+playerId = { type = "u32", doc = """
+the halfcraft server's (a server link): kEvHitActor, the Source userid of the player who
+landed it, or whose pet or arrow did (0: none known); kEvPlayerDied, the player who died""" }
+reserved = "u32[2]"

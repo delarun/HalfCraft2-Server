@@ -26,6 +26,12 @@ public final class HostSide {
 	}
 
 	/** Half-Life's actors near its player(s). */
+	public static java.lang.foreign.@Nullable MemorySegment segment() {
+		ServerLink link = dedicated();
+		return link != null ? link.segment() : HostLink.segment();
+	}
+
+	/** Half-Life's actors near its player(s). */
 	public static boolean readActors(List<ProtoStructs.ActorRecord> out) {
 		ServerLink link = dedicated();
 		return link != null ? link.readActors(out) : HostLink.readActors(out);
@@ -39,11 +45,19 @@ public final class HostSide {
 		pushEvent(type, actorId, a, b, c, d, flags, weapon, 0);
 	}
 
-	/** Queues an event for Half-Life. Any thread. */
 	public static void pushEvent(int type, int actorId, float a, float b, float c, float d, int flags, int weapon, int attackerId) {
+		pushEvent(type, actorId, a, b, c, d, flags, weapon, attackerId, 0);
+	}
+
+	/**
+	 * Queues an event for Half-Life. Any thread.
+	 *
+	 * @param playerId the Source userid of the player it's about (McEvent.playerId), for the halfcraft server's
+	 */
+	public static void pushEvent(int type, int actorId, float a, float b, float c, float d, int flags, int weapon, int attackerId, int playerId) {
 		ServerLink link = dedicated();
 		if (link != null) {
-			link.pushEvent(type, actorId, a, b, c, d, flags, weapon, attackerId);
+			link.pushEvent(type, actorId, a, b, c, d, flags, weapon, attackerId, playerId);
 		} else {
 			HostLink.pushEvent(type, actorId, a, b, c, d, flags, weapon, attackerId);
 		}

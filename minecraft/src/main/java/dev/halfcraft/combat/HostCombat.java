@@ -104,7 +104,8 @@ public final class HostCombat {
 			float[] hit = proxy.takeHit();
 			if (hit != null && (hit[0] > 0.0F || hit[3] > 0.0F)) {
 				dev.halfcraft.link.HostSide.pushEvent(
-					Proto.EV_HIT_ACTOR, proxy.actorId(), hit[0], hit[1], hit[2], hit[3], Float.floatToRawIntBits(hit[4]), Float.floatToRawIntBits(hit[5])
+					Proto.EV_HIT_ACTOR, proxy.actorId(), hit[0], hit[1], hit[2], hit[3], Float.floatToRawIntBits(hit[4]), Float.floatToRawIntBits(hit[5]),
+					0, Float.floatToRawIntBits(hit[6])
 				);
 				HalfCraft.LOG.info("HalfCraft: hit {} for {} (knockback {})", proxy.getName().getString(), hit[0], hit[3]);
 			}

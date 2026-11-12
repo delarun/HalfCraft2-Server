@@ -108,6 +108,13 @@ namespace halfcraft
 			if (entity->m_takedamage == DAMAGE_NO) {
 				continue;
 			}
+			if (entity->IsPlayer() && entity != player) {
+				// another player (a guest, a player of the halfcraft server): minecraft's blast hurt their own
+				// minecraft player already, as it did this one (ExplosionCreate's ignore)
+				held.emplace_back(EHANDLE(entity), entity->m_takedamage.Get());
+				entity->m_takedamage = DAMAGE_NO;
+				continue;
+			}
 			switch (spared(entity, !owner, player)) {
 			case Spared::kNo:
 				continue;

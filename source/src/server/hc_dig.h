@@ -29,9 +29,10 @@ namespace halfcraft
 		/// once per frame: picks up what changed in client.dll, sends the regions around each cell that changed again,
 		/// and outlines the cells for hc_debug_dig.
 		/// @param streamer - nullptr: nothing to send again
-		/// @param server_link - a dedicated server's link: the halfcraft server's minecraft writes the dug sections into
-		///                      its render ring (kRenDug); nullptr: client.dll hands them over (HalfCraft_DugSince)
-		void update(CollisionStreamer* streamer, Link* server_link = nullptr);
+		/// @param relayed - a dedicated server's: the dug sections the halfcraft server's minecraft wrote into the
+		///                  server link's render ring this frame (kRenDug, take_relayed); nullptr: client.dll hands
+		///                  them over (HalfCraft_DugSince)
+		void update(CollisionStreamer* streamer, const std::vector<DugSection>* relayed = nullptr);
 		/// @param x, y, z - a minecraft block
 		bool dug(int x, int y, int z) const;
 		/// the dug cells a minecraft box reaches into, merged into boxes (core/hc_dig_clip.h's merge_cells)
@@ -49,8 +50,6 @@ namespace halfcraft
 
 	private:
 		void take_changes(CollisionStreamer* streamer);
-		/// a dedicated server's: the dug sections the halfcraft server's minecraft wrote into the link's render ring
-		void take_messages(Link& link, CollisionStreamer* streamer);
 		/// the sections in changes_ (count of them) into the cells, and the regions around each changed cell out again
 		void apply_changes(int count, CollisionStreamer* streamer);
 		void outline();
@@ -64,6 +63,11 @@ namespace halfcraft
 		float                       next_outline_ = 0.0f;  // gpGlobals->curtime
 		bool                        outlined_ = false;
 	};
+
+	/// a dedicated server's: what the halfcraft server's minecraft wrote into the server link's render ring since the
+	/// last frame, its dug sections (kRenDug) and its solid blocks (kRenSolids), as client.dll hands them over in a
+	/// single player's game (HalfCraft_DugSince, HalfCraft_SolidsSince). the ring has one reader: this.
+	void take_relayed(Link& link, std::vector<DugSection>& dug, std::vector<SolidSection>& solids);
 
 	/// draws a minecraft box's 12 edges for a moment (hc_debug_dig), seen through walls.
 	/// @param lo, hi - minecraft coords

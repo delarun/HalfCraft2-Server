@@ -176,6 +176,8 @@ namespace halfcraft
 			WorldCollision                     world_;
 			BlockSolids                        solids_;
 			DigState                           dig_;
+			std::vector<DugSection>            relayed_dug_;     // a dedicated server's, this frame (take_relayed)
+			std::vector<SolidSection>          relayed_solids_;
 			HeldBlocks                         held_blocks_;
 			Weapons                            weapons_;
 			Combat                             combat_;
@@ -200,8 +202,11 @@ namespace halfcraft
 			if (!link_ready_ || !streamer_) {
 				return;
 			}
-			solids_.update();  // minecraft's blocks stop npcs, props and bullets
-			dig_.update(streamer_.get(), dedicated_ ? &link_ : nullptr);  // and the cells it dug come out of the collision it gets
+			if (dedicated_) {
+				take_relayed(link_, relayed_dug_, relayed_solids_);  // the halfcraft server's minecraft's
+			}
+			solids_.update(dedicated_ ? &relayed_solids_ : nullptr);  // minecraft's blocks stop npcs, props and bullets
+			dig_.update(streamer_.get(), dedicated_ ? &relayed_dug_ : nullptr);  // and the cells it dug come out of the collision it gets
 
 			CBasePlayer* player = UTIL_GetLocalPlayer();
 			const bool   puppeted = player && server_player_puppeted();

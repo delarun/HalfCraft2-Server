@@ -10,7 +10,7 @@ public final class Proto {
 
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	public static final int LAYOUT = 0xC9293CF1;
+	public static final int LAYOUT = 0xE009C1A1;
 
 	// ---- where each part of the mapping is
 	public static final long OFF_HEADER = 0x00;
@@ -399,7 +399,7 @@ public final class Proto {
 
 	// McEventType
 	public static final int EV_HIT_ACTOR = 1; // actorId, a = MC damage (after MC's own modifiers), b/c = knockback dir x/z (MC), d = knockback strength
-	public static final int EV_PLAYER_DIED = 2; // the Minecraft player died: kill the host's player
+	public static final int EV_PLAYER_DIED = 2; // the Minecraft player died: kill the host's player (the halfcraft server's: playerId's)
 	// a Minecraft explosion (TNT, creeper, ...): a/b/c = centre (MC coords), d = radius (blocks),
 	// attackerId = the Minecraft entity id of the mob that set it off (a creeper); 0: nobody (TNT)
 	public static final int EV_EXPLOSION = 3;
@@ -467,6 +467,9 @@ public final class Proto {
 	// (#13) EV_HIT_ACTOR: the Minecraft entity id of the mob that landed it; 0: the player.
 	// EV_EXPLOSION: the mob that set it off
 	public static final long MC_EVENT_ATTACKER_ID = 0x20;
+	// the halfcraft server's (a server link): EV_HIT_ACTOR, the Source userid of the player who
+	// landed it, or whose pet or arrow did (0: none known); EV_PLAYER_DIED, the player who died
+	public static final long MC_EVENT_PLAYER_ID = 0x24;
 	public static final int EVENT_BYTES = 0x30;
 
 	// ---- world entities @0x1E000 --------------------------------------------------------------------

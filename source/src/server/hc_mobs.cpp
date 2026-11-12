@@ -3,6 +3,7 @@
 #include "cbase.h"
 #include "ai_interactions.h"
 #include "npc_bullseye.h"
+#include "player.h"
 #include "takedamageinfo.h"
 
 #include "tier0/valve_minmax_off.h"
@@ -14,6 +15,7 @@
 #include "core/hc_units.h"
 #include "server/hc_combat.h"
 #include "server/hc_mobs.h"
+#include "server/hc_vitals.h"
 #include "shared/hc_bridge.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -126,8 +128,14 @@ int CHalfCraftMob::OnTakeDamage(const CTakeDamageInfo& info)
 		return 0;
 	}
 	const std::uint32_t attacker_id = attacker->IsPlayer() ? proto::kMobAttackerPlayer : host_actor_id(attacker);
-	push_input(proto::kInHurtMob, hurt_kind(info.GetDamageType()), static_cast<int>(mc_id_), static_cast<int>(std::lround(info.GetDamage() * 100.0f)),
-		static_cast<int>(attacker_id));
+	const int           damage = static_cast<int>(std::lround(info.GetDamage() * 100.0f));
+	if (attacker->IsPlayer() && dedicated_link()) {
+		// the halfcraft server's: which player struck goes with it (kInFor), the mob fights them back
+		send_player_input(ToBasePlayer(attacker), proto::kInHurtMob, hurt_kind(info.GetDamageType()), static_cast<int>(mc_id_), damage,
+			static_cast<int>(attacker_id));
+	} else {
+		push_input(proto::kInHurtMob, hurt_kind(info.GetDamageType()), static_cast<int>(mc_id_), damage, static_cast<int>(attacker_id));
+	}
 	++hurts_since_log_;
 	if (gpGlobals->curtime >= next_hurt_log_) {
 		log_info("%s hurt minecraft's mob %u for %.1f (hurts since the last line: %d)", attacker->GetClassname(), mc_id_, info.GetDamage(), hurts_since_log_);
