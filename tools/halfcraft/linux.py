@@ -4,7 +4,10 @@ build.py does with visual studio on windows, in containers here.
 - the world shaders: the sdk's ShaderCompile2.exe (windows only) runs under wine in a container with no network and
   only the shader folders mounted (tools/build/docker/wine-shaders.Dockerfile). it compiles with microsoft's
   d3dcompiler_47.dll, which wine doesn't ship: HALFCRAFT_D3DCOMPILER names one, or one of D3DCOMPILERS is taken.
-  checked: its .vcs files are byte for byte those a windows build makes.
+  checked: its .vcs files are byte for byte those a windows build makes. it is slow under wine (hc_lightmappedgeneric
+  about 7.5 hours on 12 cores), so HALFCRAFT_SHADER_RELEASE may name a release's zip whose game-hl2dm .vcs files are
+  put in the stage first, where missing: ShaderCompile2 keeps one whose source crc (in its header) is the source's
+  and compiles any other, so a stale one costs nothing but the time.
 - client.so, server.so and game_shader_generic_halfcraft.so: valve's vpc and ninja in the steam runtime's sniper sdk
   image (what hl2dm-sp's own buildallprojects runs, with podman), the repo mounted at its own path so the patch's
   $HALFCRAFTROOT reaches source/. halfcraft's own code builds without warnings: one there fails the build.
@@ -15,6 +18,7 @@ import re
 import shutil
 import struct
 import subprocess
+import zipfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -88,6 +92,19 @@ def compile_shader(source: str) -> str:
     return f"{compiled.stdout}\n{compiled.stderr}"
 
 
+def seed_from_release() -> None:
+    """HALFCRAFT_SHADER_RELEASE's .vcs files into the stage, where it has none yet (ShaderCompile2 checks them)."""
+    if not (named := os.environ.get("HALFCRAFT_SHADER_RELEASE")):
+        return
+    fxc = STAGE / "shaders/fxc"
+    fxc.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(named) as release:
+        for entry in release.namelist():
+            if re.fullmatch(r"[^/]+/game-hl2dm/shaders/fxc/[^/]+\.vcs", entry) and not (target := fxc / Path(entry).name).is_file():
+                target.write_bytes(release.read(entry))
+                print(f"{target.name}: from {Path(named).name}, compiled only if its source changed since")
+
+
 def build_shaders(engines: list, shader_errors: Callable[[str], int | None]) -> None:
     """build.build_shaders on linux: the same stage, the same checks, ShaderCompile2 under wine."""
     src = sdk.TREES["hl2dm"].source()
@@ -97,6 +114,7 @@ def build_shaders(engines: list, shader_errors: Callable[[str], int | None]) -> 
     shutil.copy2(src / "devtools/bin/ShaderCompile2.exe", COMPILER)
     shutil.copy2(d3dcompiler(), COMPILER / "d3dcompiler_47.dll")
     wine_image()
+    seed_from_release()
     for header in stdshaders.glob("*.h"):
         shutil.copy2(header, STAGE)
     shaders.OUT.mkdir(exist_ok=True)
