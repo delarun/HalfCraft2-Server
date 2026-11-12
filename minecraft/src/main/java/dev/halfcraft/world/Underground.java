@@ -15,8 +15,8 @@ import static dev.halfcraft.link.Proto.*;
 public final class Underground {
 	/** Minecraft's sea level over the mirror world's ground. */
 	static final int SHIFT = 50;
-	/** Blocks under the surface that are still the ground's own (dirt, sand), and sandstone under sand down to this. */
-	static final double SOIL_DEPTH = 3.0, SANDSTONE_DEPTH = 5.0;
+	/** Blocks under the surface that are still the ground's own (dirt; sand only its top), and sandstone under sand down to this. */
+	static final double SOIL_DEPTH = 3.0, SAND_DEPTH = 1.0, SANDSTONE_DEPTH = 5.0;
 	/** No cave this close under the surface: the ground over it would hang by a thread. */
 	static final double CAVE_MIN_DEPTH = 6.0;
 
@@ -52,7 +52,7 @@ public final class Underground {
 		if (depth >= CAVE_MIN_DEPTH && cave(seed, x, y, z)) {
 			return AIR;
 		}
-		if (depth < SOIL_DEPTH && surface == DIG_SAND) {
+		if (depth < SAND_DEPTH && surface == DIG_SAND) {
 			return "minecraft:sand";
 		}
 		if (depth < SOIL_DEPTH && surface == DIG_DIRT) {

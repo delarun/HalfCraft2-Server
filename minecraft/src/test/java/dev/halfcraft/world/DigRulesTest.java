@@ -36,6 +36,7 @@ class DigRulesTest {
 		final Set<Pos> built = new HashSet<>();
 		final Map<Pos, long[]> occupancy = new HashMap<>();
 		final Map<Pos, long[]> voids = new HashMap<>();
+		final Set<Pos> ground = new HashSet<>();
 
 		@Override
 		public boolean known(int x, int y, int z) {
@@ -70,6 +71,11 @@ class DigRulesTest {
 		@Override
 		public long @Nullable [] voids(int x, int y, int z) {
 			return this.voids.get(new Pos(x, y, z));
+		}
+
+		@Override
+		public boolean ground(int x, int y, int z) {
+			return this.ground.contains(new Pos(x, y, z));
 		}
 	}
 
@@ -277,6 +283,16 @@ class DigRulesTest {
 		assertEquals(List.of(new DigRules.Reveal(1, 0, 0, DIG_IRON)), reveals(w, 0, 0, 0, DIG_IRON, false));
 		w.dug.remove(new Pos(1, 1, 0)); // the map's air over it: its top shows
 		assertEquals(List.of(), reveals(w, 0, 0, 0, DIG_IRON, false));
+	}
+
+	@Test
+	void shouldRevealRockUnderTheGroundEvenWithTheGroundsFaceOnIt() {
+		// the void against the map's air, as below, but rock under the ground: a hole's side, revealed to be mined
+		World w = new World();
+		w.voids.put(new Pos(-1, 0, 0), FULL);
+		w.ground.add(new Pos(-1, 0, 0));
+		w.occupancy.put(new Pos(-1, 0, 1), face(2));
+		assertEquals(List.of(new DigRules.Reveal(-1, 0, 0, DIG_DIRT, true)), reveals(w, 0, 0, 0, DIG_DIRT, false));
 	}
 
 	@Test

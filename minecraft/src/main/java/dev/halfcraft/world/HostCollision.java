@@ -157,12 +157,21 @@ public final class HostCollision {
 		return LAYERS.isEmpty() ? null : LAYERS.get(BlockPos.asLong(x, y, z));
 	}
 
+	/** Whether a cell is rock under Half-Life's ground (wholly or partly): no void beyond the map, only ground. */
+	public static boolean isGroundAt(int x, int y, int z) {
+		if (VOIDS.isEmpty()) {
+			return false;
+		}
+		RegionVoid region = VOIDS.get(regionKey(Math.floorDiv(x, REGION_SIZE), Math.floorDiv(y, REGION_SIZE), Math.floorDiv(z, REGION_SIZE)));
+		return region != null && region.ground(Math.floorMod(x, REGION_SIZE), Math.floorMod(y, REGION_SIZE), Math.floorMod(z, REGION_SIZE));
+	}
+
 	/**
-	 * This cell's void, as 8 occupancy layers (bit z * 8 + x of layer y): what lies in a solid leaf of
-	 * Half-Life's map and in none of its brushes, beyond the map. Null without void, or while its region
-	 * is unknown. Never change them. A dug cell inside a world brush reads as void once its region comes
-	 * again (Half-Life finds void after the cut): callers skip dug cells.
-	 */
+		 * This cell's void, as 8 occupancy layers (bit z * 8 + x of layer y): what lies in a solid leaf of
+		 * Half-Life's map and in none of its brushes, beyond the map. Null without void, or while its region
+		 * is unknown. Never change them. A dug cell inside a world brush reads as void once its region comes
+		 * again (Half-Life finds void after the cut): callers skip dug cells.
+		 */
 	public static long @Nullable [] voidLayersAt(int x, int y, int z) {
 		if (VOIDS.isEmpty()) {
 			return null;

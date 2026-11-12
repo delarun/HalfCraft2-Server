@@ -20,7 +20,8 @@ class UndergroundTest {
 
 	@Test
 	void theGroundGoesOnUnderItsSurface() {
-		assertEquals("minecraft:sand", Underground.blockAt(SEED, 0, 10, 0, DIG_SAND, 1.5));
+		assertEquals("minecraft:sand", Underground.blockAt(SEED, 0, 10, 0, DIG_SAND, 0.5));
+		assertEquals("minecraft:sandstone", Underground.blockAt(SEED, 0, 10, 0, DIG_SAND, 1.5));
 		assertEquals("minecraft:sandstone", Underground.blockAt(SEED, 0, 10, 0, DIG_SAND, 4.0));
 		assertEquals("minecraft:dirt", Underground.blockAt(SEED, 0, 10, 0, DIG_DIRT, 0.5));
 	}

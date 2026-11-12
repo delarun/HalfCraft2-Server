@@ -347,6 +347,11 @@ public final class HostDig {
 			public long @Nullable [] voids(int x, int y, int z) {
 				return HostCollision.voidLayersAt(x, y, z);
 			}
+
+			@Override
+			public boolean ground(int x, int y, int z) {
+				return HostCollision.isGroundAt(x, y, z);
+			}
 		};
 	}
 }
