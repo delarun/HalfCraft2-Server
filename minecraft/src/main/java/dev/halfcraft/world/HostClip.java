@@ -42,6 +42,13 @@ public final class HostClip {
 		if (vanilla.getType() != HitResult.Type.MISS && from.distanceToSqr(vanilla.getLocation()) <= from.distanceToSqr(location)) {
 			return vanilla;
 		}
+		// a Minecraft block sunk in Half-Life's surface (one revealed under the ground's, one placed against a slope):
+		// the surface over it is its cell's, and the block is what the look is on
+		int[] inside = HostRay.surfaceCell(hit);
+		if (vanilla instanceof BlockHitResult block && vanilla.getType() == HitResult.Type.BLOCK && block.getBlockPos().getX() == inside[0]
+			&& block.getBlockPos().getY() == inside[1] && block.getBlockPos().getZ() == inside[2]) {
+			return vanilla;
+		}
 		Direction face = Direction.values()[HostRay.dominantFace(hit.nx(), hit.ny(), hit.nz())];
 		int[] cell = use == Use.PICK ? HostRay.placementCell(hit) : HostRay.surfaceCell(hit);
 		return new HostHitResult(location, face, new BlockPos(cell[0], cell[1], cell[2]), hit);

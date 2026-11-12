@@ -1,5 +1,7 @@
 package dev.halfcraft.client;
 
+import static dev.halfcraft.link.Proto.DIG_STONE;
+
 import dev.halfcraft.HalfCraft;
 import dev.halfcraft.client.render.WorldExporter;
 import dev.halfcraft.mobs.HostNav;
@@ -12,7 +14,11 @@ import dev.halfcraft.world.HostClip;
 import dev.halfcraft.world.HostDig;
 import dev.halfcraft.world.HostRay;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import dev.halfcraft.world.HostCollision;
+import dev.halfcraft.world.HostTri;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -22,13 +28,19 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -47,6 +59,10 @@ public final class HostDigClient {
 	private HostDigClient() {
 	}
 
+	/** A cell of Half-Life's wall to mine: where the look meets it (x, y, z), the face's normal, and what it digs as. */
+	private record Target(BlockPos pos, int material, double x, double y, double z, double nx, double ny, double nz) {
+	}
+
 	/**
 	 * The cell of Half-Life's wall under the crosshair that attacking would mine, or null: none is hit,
 	 * Half-Life lets nothing be dug, the player holds Half-Life's weapon or plays a mode that can't build, the face
@@ -54,9 +70,14 @@ public final class HostDigClient {
 	 * cell, or the HalfCraft server (DigPayload).
 	 */
 	public static @Nullable BlockPos target(Minecraft minecraft) {
+		Target target = find(minecraft);
+		return target == null ? null : target.pos();
+	}
+
+	private static @Nullable Target find(Minecraft minecraft) {
 		ClientLevel level = minecraft.level;
 		LocalPlayer player = minecraft.player;
-		if (!(minecraft.hitResult instanceof HostClip.HostHitResult result) || level == null || player == null || minecraft.gameMode == null
+		if (level == null || player == null || minecraft.gameMode == null
 			|| (minecraft.getSingleplayerServer() == null && !net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.canSend(dev.halfcraft.world.DigPayload.TYPE))) {
 			return null;
 		}
@@ -66,19 +87,79 @@ public final class HostDigClient {
 		if (HostWeapons.isStandIn(player.getMainHandItem()) || minecraft.gameMode.getPlayerMode().isBlockPlacingRestricted()) {
 			return null;
 		}
-		if (!result.hit.tri().diggable()) {
+		Target surface = null;
+		double surfaceDistance = Double.POSITIVE_INFINITY;
+		if (minecraft.hitResult instanceof HostClip.HostHitResult result && result.hit.tri().diggable()) {
+			int[] cell = HostRay.surfaceCell(result.hit);
+			HostRay.Hit hit = result.hit;
+			surface = new Target(new BlockPos(cell[0], cell[1], cell[2]), hit.tri().digMaterial, hit.x(), hit.y(), hit.z(), hit.nx(), hit.ny(), hit.nz());
+			surfaceDistance = player.getEyePosition().distanceTo(result.getLocation());
+		}
+		// a hole's side or bottom where Half-Life has no triangle (under its ground's surface): the look meets the rock there
+		Target wall = holeWall(level, player, Math.min(surfaceDistance, player.blockInteractionRange()));
+		Target target = wall != null ? wall : surface;
+		if (target == null || dug(level, target.pos().getX(), target.pos().getY(), target.pos().getZ())) {
 			return null;
 		}
-		int[] cell = HostRay.surfaceCell(result.hit);
-		BlockPos pos = new BlockPos(cell[0], cell[1], cell[2]);
-		if (dug(level, pos.getX(), pos.getY(), pos.getZ())) {
-			return null;
-		}
-		BlockState here = level.getBlockState(pos);
+		BlockState here = level.getBlockState(target.pos());
 		if (!here.isAir() && !here.canBeReplaced()) {
 			return null;
 		}
-		return pos;
+		return target;
+	}
+
+	/**
+	 * The first cell along the look, nearer than {@code reach}, that is rock Half-Life's collision holds (HostDig.collisionShape)
+	 * next to a dug cell: a hole's side or bottom. Its material is its diggable triangles' (the ground's surface in it), else
+	 * stone. Null for none, or a Minecraft block in the way first.
+	 */
+	private static @Nullable Target holeWall(ClientLevel level, LocalPlayer player, double reach) {
+		Vec3 from = player.getEyePosition();
+		Vec3 to = from.add(player.getViewVector(1.0F).scale(reach));
+		BlockPos[] found = new BlockPos[1];
+		BlockHitResult[] at = new BlockHitResult[1];
+		BlockGetter.traverseBlocks(from, to, null, (ignored, pos) -> {
+			BlockState state = level.getBlockState(pos);
+			if (!state.getShape(level, pos).isEmpty()) {
+				return Boolean.FALSE; // Minecraft's block: vanilla's to mine
+			}
+			if (dug(level, pos.getX(), pos.getY(), pos.getZ()) || !nextToDug(level, pos)) {
+				return null;
+			}
+			VoxelShape rock = HostDig.collisionShape(level, pos, true);
+			BlockHitResult hit = rock == null ? null : rock.clip(from, to, pos);
+			if (hit == null) {
+				return null;
+			}
+			found[0] = pos.immutable();
+			at[0] = hit;
+			return Boolean.TRUE;
+		}, ignored -> Boolean.FALSE);
+		if (found[0] == null) {
+			return null;
+		}
+		BlockPos pos = found[0];
+		int material = DIG_STONE;
+		List<HostTri> tris = new ArrayList<>();
+		HostCollision.trianglesNear(new AABB(pos), tris);
+		for (HostTri tri : tris) {
+			if (tri.diggable()) {
+				material = tri.digMaterial;
+				break;
+			}
+		}
+		Vec3 hit = at[0].getLocation();
+		var normal = at[0].getDirection().getUnitVec3();
+		return new Target(pos, material, hit.x, hit.y, hit.z, normal.x, normal.y, normal.z);
+	}
+
+	private static boolean nextToDug(ClientLevel level, BlockPos pos) {
+		for (Direction side : Direction.values()) {
+			if (dug(level, pos.getX() + side.getStepX(), pos.getY() + side.getStepY(), pos.getZ() + side.getStepZ())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -86,19 +167,19 @@ public final class HostDigClient {
 	 * Returns whether it did, and Minecraft's own attack is to be left out.
 	 */
 	public static boolean attack(Minecraft minecraft) {
-		BlockPos pos = target(minecraft);
-		if (pos == null) {
+		Target target = find(minecraft);
+		if (target == null) {
 			return false;
 		}
-		HostRay.Hit hit = ((HostClip.HostHitResult) minecraft.hitResult).hit;
+		BlockPos pos = target.pos();
 		LocalPlayer player = minecraft.player;
 		ClientLevel level = minecraft.level;
-		int material = hit.tri().digMaterial;
+		int material = target.material();
 		BlockState state = HostDig.stateFor(material);
 		float delta = player.getAbilities().instabuild ? 1.0F : state.getDestroyProgress(player, level, pos);
 		DigProgress.Step step = PROGRESS.hit(pos.asLong(), ticks, delta);
 		if (step == DigProgress.Step.KNOCK) {
-			knock(minecraft, level, hit, pos, state);
+			knock(minecraft, level, target, state);
 		} else if (step == DigProgress.Step.OPEN) {
 			open(minecraft, player, pos, material);
 		}
@@ -106,7 +187,8 @@ public final class HostDigClient {
 	}
 
 	// the block's hit sound and a chip off the surface
-	private static void knock(Minecraft minecraft, ClientLevel level, HostRay.Hit hit, BlockPos pos, BlockState state) {
+	private static void knock(Minecraft minecraft, ClientLevel level, Target hit, BlockState state) {
+		BlockPos pos = hit.pos();
 		SoundType sound = state.getSoundType();
 		minecraft.getSoundManager().play(new SimpleSoundInstance(
 			sound.getHitSound(), SoundSource.BLOCKS, (sound.getVolume() + 1.0F) / 8.0F, sound.getPitch() * 0.5F, SoundInstance.createUnseededRandom(), pos

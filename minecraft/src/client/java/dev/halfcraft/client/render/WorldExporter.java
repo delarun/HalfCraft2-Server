@@ -615,14 +615,23 @@ public final class WorldExporter {
 	 */
 	private static float[] selection(Minecraft minecraft, ClientLevel level) {
 		HitResult hit = minecraft.hitResult;
-		if (!(hit instanceof BlockHitResult blockHit) || hit.getType() != HitResult.Type.BLOCK || minecraft.gui.screen() != null || minecraft.gui.hud.isHidden()) {
+		if (minecraft.gui.screen() != null || minecraft.gui.hud.isHidden()) {
+			return null;
+		}
+		if (!(minecraft.player.getMainHandItem().getItem() instanceof BlockItem)) {
+			// Half-Life's wall to mine, a hole's side among them (no hit result of its own)
+			BlockPos dig = HostDigClient.target(minecraft);
+			if (dig != null) {
+				return new float[] { dig.getX(), dig.getY(), dig.getZ(), dig.getX() + 1, dig.getY() + 1, dig.getZ() + 1 };
+			}
+		}
+		if (!(hit instanceof BlockHitResult blockHit) || hit.getType() != HitResult.Type.BLOCK) {
 			return null;
 		}
 		BlockPos pos = blockHit.getBlockPos();
 		if (blockHit instanceof HostClip.HostHitResult) {
 			if (!(minecraft.player.getMainHandItem().getItem() instanceof BlockItem)) {
-				BlockPos dig = HostDigClient.target(minecraft);
-				return dig == null ? null : new float[] { dig.getX(), dig.getY(), dig.getZ(), dig.getX() + 1, dig.getY() + 1, dig.getZ() + 1 };
+				return null; // nothing to mine there (above)
 			}
 			return new float[] { pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 1, pos.getY() + 1, pos.getZ() + 1 };
 		}
