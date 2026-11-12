@@ -209,5 +209,10 @@ namespace halfcraft
 	/// for more than one, the player gets the suit (hc_spawn_suit) and the weapons of hc_spawn_loadout they lack, with
 	/// two clips of each one's ammo at least; nothing in singleplayer (hc_coop.cpp).
 	void server_player_spawned(CBasePlayer* player);
+
+	/// CServerGameDLL::LevelInit, first: the map's entity lump as the server parses it. with more than one slot and
+	/// hc_sandbox, without the story (core/hc_sandbox.h); else the map's own (hc_sandbox.cpp).
+	/// @return the lump to parse, alive until the next call
+	const char* server_map_entities(const char* map, const char* entities);
 #endif
 }

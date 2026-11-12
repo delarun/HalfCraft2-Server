@@ -23,6 +23,8 @@ what a dedicated server wants that the client's game folder doesn't have, all ma
   loaded once.
 - srcds_linux64 and the 64-bit libsteam_api.so, which app 232370 doesn't ship: copied from the client's install.
 
+tools/server/rcon.py sends it console commands (make server-cmd C=...), with the password in build/server/rcon.txt.
+
 clients connect by the machine's lan address (connect <ip>:<port>): this engine ignores 127.0.0.1. the server listens
 on every address (+ip 0.0.0.0). -hc_link: the server's own link (srv by default), never the default link a client on
 the same machine has.
@@ -37,6 +39,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools/, where the halfcraft package is
+import rcon
+
 from halfcraft import REPO, ToolError, engines, game_folder
 
 ENGINE = engines.ENGINES["hl2dm"]
@@ -106,7 +110,8 @@ def run(srcds: Path, *, map: str, port: int, players: int, link_id: str, log: Pa
     command = [
         "./srcds_linux64", "-game", GAME_LINK, "-console", "-nobreakpad", "-hc_link", link_id,
         "+ip", "0.0.0.0",  # noqa: S104 a game server: players connect from the lan
-        "-port", str(port), "+sv_lan", "1", "+maxplayers", str(players), *extra, "+map", map,
+        "-port", str(port), "+sv_lan", "1", "+maxplayers", str(players),
+        "+rcon_password", rcon.password(), *extra, "+map", map,
     ]  # fmt: skip
     env = {**os.environ, "LD_LIBRARY_PATH": f"{srcds / 'bin/linux64'}:{GAME / 'srvlib'}"}
     if log is None:

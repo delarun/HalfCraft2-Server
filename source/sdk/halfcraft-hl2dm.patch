@@ -443,8 +443,31 @@ index fb59bca9..bc4ff2e8 100644
  
  	CBoneCache *pcache = Studio_GetBoneCache( m_boneCacheHandle );
  	int boneMask = BONE_USED_BY_HITBOX | BONE_USED_BY_ATTACHMENT;
+diff --git a/src/game/server/gameinterface.cpp b/src/game/server/gameinterface.cpp
+index 64451ceb..0bec9379 100644
+--- a/src/game/server/gameinterface.cpp
++++ b/src/game/server/gameinterface.cpp
+@@ -148,6 +148,8 @@ CSteamGameServerAPIContext *steamgameserverapicontext = &s_SteamGameServerAPICon
+ 
+ IUploadGameStats *gamestatsuploader = NULL;
+ 
++#include "shared/hc_hooks.h"
++
+ // memdbgon must be the last include file in a .cpp file!!!
+ #include "tier0/memdbgon.h"
+ 
+@@ -969,6 +971,9 @@ float g_flServerCurTime = 0.0f;
+ // Called any time a new level is started (after GameInit() also on level transitions within a game)
+ bool CServerGameDLL::LevelInit( const char *pMapName, char const *pMapEntities, char const *pOldLevel, char const *pLandmarkName, bool loadGame, bool background )
+ {
++	// halfcraft: the server's sandbox takes the story out of the map's entities (more than one slot only)
++	pMapEntities = halfcraft::server_map_entities( pMapName, pMapEntities );
++
+ 	VPROF("CServerGameDLL::LevelInit");
+ 
+ 	g_flServerCurTime = gpGlobals->curtime;
 diff --git a/src/game/server/hl2/hl2_client.cpp b/src/game/server/hl2/hl2_client.cpp
-index 6125de82..2cd71b40 100644
+index 6125de82..3604ce60 100644
 --- a/src/game/server/hl2/hl2_client.cpp
 +++ b/src/game/server/hl2/hl2_client.cpp
 @@ -26,6 +26,8 @@
@@ -466,7 +489,17 @@ index 6125de82..2cd71b40 100644
  	}
  }
  
-@@ -136,6 +141,9 @@ void respawn( CBaseEntity *pEdict, bool fCopyCorpse )
+@@ -128,14 +133,14 @@ void respawn( CBaseEntity *pEdict, bool fCopyCorpse )
+ {
+ 	if (gpGlobals->coop || gpGlobals->deathmatch)
+ 	{
+-		if ( fCopyCorpse )
+-		{
+-			// make a copy of the dead body for appearances sake
+-			((CHL2_Player *)pEdict)->CreateCorpse();
+-		}
++		// halfcraft: no copy of the dead body. half-life 2's player model is the headless suit, and its copy stood
++		// where the player died, unanimated (players are seen as their minecraft bodies)
  
  		// respawn player
  		pEdict->Spawn();

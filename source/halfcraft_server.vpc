@@ -62,6 +62,7 @@ $Project
 			$File	"$HALFCRAFTDIR\src\server\hc_players.cpp"
 			$File	"$HALFCRAFTDIR\src\server\hc_push.h"
 			$File	"$HALFCRAFTDIR\src\server\hc_push.cpp"
+			$File	"$HALFCRAFTDIR\src\server\hc_sandbox.cpp"
 			$File	"$HALFCRAFTDIR\src\server\hc_server.cpp"
 			$File	"$HALFCRAFTDIR\src\server\hc_vitals.h"
 			$File	"$HALFCRAFTDIR\src\server\hc_vitals.cpp"
@@ -90,6 +91,7 @@ $Project
 				$File	"$HALFCRAFTDIR\src\core\hc_log.h"
 				$File	"$HALFCRAFTDIR\src\core\hc_module.h"
 				$File	"$HALFCRAFTDIR\src\core\hc_platform.h"
+				$File	"$HALFCRAFTDIR\src\core\hc_sandbox.h"
 				$File	"$HALFCRAFTDIR\src\core\hc_text.h"
 				$File	"$HALFCRAFTDIR\src\core\hc_units.h"
 				$File	"$HALFCRAFTDIR\src\core\hc_collision.cpp" \
