@@ -9,7 +9,7 @@ namespace halfcraft::proto
 {
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	inline constexpr std::uint32_t kLayout = 0xC0DBDF76;
+	inline constexpr std::uint32_t kLayout = 0x4D909C9E;
 
 	// ---- where each part of the mapping is ----------------------------------------------------------
 	inline constexpr std::uint64_t kOffHeader = 0x00;
@@ -49,8 +49,10 @@ namespace halfcraft::proto
 	// the default link's mapping. a link id (HALFCRAFT_LINK on both sides, or source's -hc_link: 1-32 of A-Z
 	// a-z 0-9 _ -) gives a pair (a source game and its minecraft) a link of its own, <this>.<id>, so two pairs
 	// can run on one pc. a link's frame event is <its mapping>_frame, an auto-reset event the host sets after
-	// each frame's HostState: minecraft waits on it to draw once per host frame, asleep in between. minecraft
-	// holds a mutex <its mapping>_minecraft while it runs. core/hc_link_names.h, LinkNames.java and
+	// each frame's HostState: minecraft waits on it to draw once per host frame, asleep in between (on linux it
+	// waits on Header.hostFrame, a futex, instead). minecraft holds a mutex <its mapping>_minecraft while it runs
+	// (on linux a lock on the file /dev/shm/<its name>). on linux the mapping is the posix shared memory object
+	// /<the name after Local\> (/dev/shm/HalfCraft_v1, /dev/shm/HalfCraft_v1.b). core/hc_link_names.h, LinkNames.java and
 	// tools/halfcraft/link.py build the names
 	inline constexpr wchar_t kMappingName[] = L"Local\\HalfCraft_v1";
 
@@ -60,13 +62,17 @@ namespace halfcraft::proto
 		std::uint32_t layout;           // kLayout: Minecraft links only with a host built from the same schema
 		std::uint32_t hostPid;
 		std::uint32_t mcPid;
-		std::uint64_t hostHeartbeatMs;  // GetTickCount64() at the host's last frame
-		std::uint64_t mcHeartbeatMs;    // GetTickCount64() at MC's last frame
+		std::uint64_t hostHeartbeatMs;  // the host's last frame on the tick clock (GetTickCount64, linux: CLOCK_MONOTONIC ms)
+		std::uint64_t mcHeartbeatMs;    // MC's last frame on the tick clock
 		// a new value each time a host sets the link up; Minecraft starts its side over when it changes.
 		// the pid alone can't tell: a restarted game may get the pid of the one before it
 		std::uint64_t hostSession;
+		// counts the host's frames: the host adds one after each frame's HostState. on linux, where there are no named
+		// events, it is a futex: the host wakes its waiters and minecraft waits while it holds the count it last saw
+		std::uint32_t hostFrame;
+		std::uint32_t pad2C;
 	};
-	static_assert(sizeof(Header) == 0x28);
+	static_assert(sizeof(Header) == 0x30);
 
 	// ---- host -> MC state @0x100 --------------------------------------------------------------------
 	inline constexpr std::uint32_t kWaterGridSize = 16;

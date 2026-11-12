@@ -9,6 +9,15 @@ import org.junit.jupiter.api.Test;
 
 class LinkNamesTest {
 	@Test
+	void linuxNamesAreWhatFollowsTheNamespace() {
+		assertEquals("/HalfCraft_v1", LinkNames.posixName(LinkNames.of("").orElseThrow().mapping()));
+		LinkNames b = LinkNames.of("b").orElseThrow();
+		assertEquals("/HalfCraft_v1.b", LinkNames.posixName(b.mapping()));
+		assertEquals("/HalfCraft_v1.b_minecraft", LinkNames.posixName(b.minecraftMutex()));
+		assertEquals("/HalfCraft_v1", LinkNames.posixName("HalfCraft_v1"));
+	}
+
+	@Test
 	void noIdKeepsTheNamesHalfCraftAlwaysHad() {
 		for (String none : new String[] { null, "" }) {
 			LinkNames names = LinkNames.of(none).orElseThrow();

@@ -1,7 +1,7 @@
 #pragma once
 
 // engine-agnostic logging for the halfcraft core. the host (client.dll / server.dll) points it at
-// the source console; until then lines go to the debugger.
+// the source console; until then lines go to the debugger (stderr on linux).
 
 namespace halfcraft
 {

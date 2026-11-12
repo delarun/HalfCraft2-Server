@@ -47,6 +47,15 @@ public record LinkNames(String id, String mapping, String frameEvent, String min
 		return validId(id) ? Optional.of(named(id, Proto.MAPPING_NAME + "." + id)) : Optional.empty();
 	}
 
+	/**
+	 * A link object's name on Linux (POSIX shared memory, /dev/shm): what follows Windows' namespace (Local\),
+	 * after a slash. Local\HalfCraft_v1.b is /HalfCraft_v1.b, the file /dev/shm/HalfCraft_v1.b. Half-Life's
+	 * core/hc_link_names.h (posix_name) builds the same.
+	 */
+	public static String posixName(String windowsName) {
+		return "/" + windowsName.substring(windowsName.lastIndexOf('\\') + 1);
+	}
+
 	private static LinkNames named(String id, String mapping) {
 		return new LinkNames(id, mapping, mapping + "_frame", mapping + "_minecraft");
 	}

@@ -1558,6 +1558,10 @@ namespace
 		const auto b = link_names("b");
 		CHECK(b && b->id == "b" && b->mapping == L"Local\\HalfCraft_v1.b");
 		CHECK(b && b->frame_event == L"Local\\HalfCraft_v1.b_frame" && b->minecraft_mutex == L"Local\\HalfCraft_v1.b_minecraft");
+		// linux: the same names after the namespace, as posix shared memory names
+		CHECK(plain && posix_name(plain->mapping) == "/HalfCraft_v1");
+		CHECK(b && posix_name(b->mapping) == "/HalfCraft_v1.b" && posix_name(b->minecraft_mutex) == "/HalfCraft_v1.b_minecraft");
+		CHECK(posix_name(L"HalfCraft_v1") == "/HalfCraft_v1");
 		const std::string longest_id = "Pair_2-of-3_ABCDEFGHIJKLMNOPQRST";
 		const auto        longest = link_names(longest_id);
 		CHECK(longest_id.size() == MAX_LINK_ID && longest && longest->mapping == L"Local\\HalfCraft_v1.Pair_2-of-3_ABCDEFGHIJKLMNOPQRST");

@@ -9,7 +9,7 @@
 //
 // the id is HALFCRAFT_LINK's on both sides; source's -hc_link wins over it (choose_link_id). an id given that isn't
 // one gives no names at all: the default link's would be another pair's. minecraft's LinkNames.java and
-// tools/halfcraft/link.py build the same names. pure: no windows, no sdk.
+// tools/halfcraft/link.py build the same names; on linux each is posix_name's. pure: no windows, no sdk.
 
 #include <algorithm>
 #include <cstddef>
@@ -65,6 +65,20 @@ namespace halfcraft
 		names.frame_event = names.mapping + L"_frame";
 		names.minecraft_mutex = names.mapping + L"_minecraft";
 		return names;
+	}
+
+	/// a link object's name on linux (posix shared memory, /dev/shm): what follows windows' namespace
+	/// (Local\), after a slash. Local\HalfCraft_v1.b_minecraft is /HalfCraft_v1.b_minecraft, the file
+	/// /dev/shm/HalfCraft_v1.b_minecraft. the names are ascii (valid_link_id), so nothing is lost.
+	inline std::string posix_name(std::wstring_view windows_name)
+	{
+		const auto  slash = windows_name.rfind(L'\\');
+		const auto  tail = slash == std::wstring_view::npos ? windows_name : windows_name.substr(slash + 1);
+		std::string name = "/";
+		for (const wchar_t c : tail) {
+			name += static_cast<char>(c);
+		}
+		return name;
 	}
 
 	/// the link id a process was given, and where.

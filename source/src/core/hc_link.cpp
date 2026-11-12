@@ -6,16 +6,26 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
 #include <sddl.h>
-#include <intrin.h>
+#pragma comment(lib, "advapi32.lib")
+#else
+#include <cerrno>
+#include <climits>
+#include <fcntl.h>
+#include <linux/futex.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
 
 #include "hc_atomic.h"
 #include "hc_log.h"
-
-#pragma comment(lib, "advapi32.lib")
+#include "hc_platform.h"
 
 namespace halfcraft
 {
@@ -23,36 +33,18 @@ namespace halfcraft
 	{
 		constexpr std::uint64_t MC_TIMEOUT_MS = 3000;
 
-		/// ascii as windows' wide functions take it.
-		std::wstring widen(std::string_view ascii)
+		/// a link object's name as this system calls it, for the log: windows' own, linux's posix_name.
+		std::string system_name(const std::wstring& windows_name)
 		{
-			std::wstring wide;
-			for (const char c : ascii) {
-				wide += static_cast<wchar_t>(static_cast<unsigned char>(c));
+#ifdef _WIN32
+			std::string ascii;
+			for (const wchar_t c : windows_name) {
+				ascii += static_cast<char>(c);  // ascii, as link_names makes them
 			}
-			return wide;
-		}
-
-		/// one of this process's environment variables in utf-8; nullopt when it isn't set or is empty. a
-		/// character outside ascii stays what it is (no link id has one).
-		std::optional<std::string> environment_variable(const std::wstring& name)
-		{
-			const DWORD size = ::GetEnvironmentVariableW(name.c_str(), nullptr, 0);
-			if (size <= 1) {
-				return std::nullopt;
-			}
-			std::wstring wide(size, L'\0');
-			const DWORD  length = ::GetEnvironmentVariableW(name.c_str(), wide.data(), size);
-			if (length == 0 || length >= size) {
-				return std::nullopt;
-			}
-			wide.resize(length);
-			const int   bytes = ::WideCharToMultiByte(CP_UTF8, 0, wide.data(), static_cast<int>(length), nullptr, 0, nullptr, nullptr);
-			std::string utf8(static_cast<std::size_t>(std::max(bytes, 0)), '\0');
-			if (bytes > 0) {
-				::WideCharToMultiByte(CP_UTF8, 0, wide.data(), static_cast<int>(length), utf8.data(), bytes, nullptr, nullptr);
-			}
-			return utf8;
+			return ascii;
+#else
+			return posix_name(windows_name);
+#endif
 		}
 
 		// server.dll's view of the mapping: from the start up to the end of the collision ring, the
@@ -67,6 +59,7 @@ namespace halfcraft
 		static_assert(proto::kOffHostDebug + proto::kHostDebugBytes <= SERVER_VIEW_BYTES, "server.dll writes its part of the host debug");
 		static_assert(SERVER_VIEW_BYTES <= proto::kOffOverlayPixels, "the overlay and the render ring are client.dll's");
 
+#ifdef _WIN32
 		// who may open the mapping: this windows user (plus system and administrators) at normal
 		// integrity. said explicitly because a game run as administrator would otherwise make it
 		// administrators-only, and minecraft (never elevated) could not open it. free with LocalFree.
@@ -95,6 +88,14 @@ namespace halfcraft
 			}
 			return descriptor;
 		}
+#else
+		/// wakes everything waiting on a futex word in the mapping (minecraft's frame pacing). not
+		/// FUTEX_PRIVATE: the waiter is another process.
+		void futex_wake_all(std::uint32_t* word)
+		{
+			::syscall(SYS_futex, word, FUTEX_WAKE, INT_MAX, nullptr, nullptr, 0);
+		}
+#endif
 
 		/// a ring whose two indices disagree: its reader ahead of its writer, or further behind than the
 		/// ring holds. never in a normal run (minecraft's debug screen once showed a backlog bigger than
@@ -108,7 +109,7 @@ namespace halfcraft
 		/// logs an out-of-step ring, at most once a minute for each place that meets it.
 		void log_out_of_step(std::uint64_t& logged_ms, const char* ring, std::uint64_t head, std::uint64_t tail)
 		{
-			const auto now = ::GetTickCount64();
+			const auto now = tick_ms();
 			if (logged_ms == 0 || now - logged_ms >= 60000) {
 				logged_ms = now;
 				log_error("%s ring out of step (written up to %llu, read up to %llu): resyncing", ring, static_cast<unsigned long long>(head),
@@ -134,7 +135,7 @@ namespace halfcraft
 			for (int attempt = 0; attempt < attempts; ++attempt) {
 				const auto s1 = seq.load(std::memory_order_acquire);
 				if (s1 & 1) {
-					_mm_pause();
+					cpu_pause();
 					continue;
 				}
 				std::memcpy(&out, src, sizeof(T));
@@ -149,7 +150,7 @@ namespace halfcraft
 
 	std::optional<LinkNames> process_link_names(const char* parameter)
 	{
-		const auto variable = environment_variable(widen(LINK_ID_VARIABLE));
+		const auto variable = environment_variable(LINK_ID_VARIABLE);
 		const auto choice = choose_link_id(parameter, variable ? variable->c_str() : nullptr);
 		auto       names = chosen_link_names(choice);
 		if (!names && choice.id.empty()) {
@@ -163,14 +164,14 @@ namespace halfcraft
 
 	void pass_link_on(const LinkNames& names)
 	{
-		const std::wstring id = widen(names.id);
-		if (!::SetEnvironmentVariableW(widen(LINK_ID_VARIABLE).c_str(), names.id.empty() ? nullptr : id.c_str()) && !names.id.empty()) {
-			log_warning("couldn't set %s for what this game starts (%lu): a minecraft it starts takes the default link", LINK_ID_VARIABLE, ::GetLastError());
+		if (!set_environment_variable(LINK_ID_VARIABLE, names.id.empty() ? nullptr : names.id.c_str()) && !names.id.empty()) {
+			log_warning("couldn't set %s for what this game starts (%lu): a minecraft it starts takes the default link", LINK_ID_VARIABLE, last_error());
 		}
 	}
 
 	Link::~Link()
 	{
+#ifdef _WIN32
 		if (base_) {
 			::UnmapViewOfFile(base_);
 		}
@@ -180,6 +181,11 @@ namespace halfcraft
 		if (frame_event_) {
 			::CloseHandle(frame_event_);
 		}
+#else
+		if (base_) {
+			::munmap(base_, static_cast<std::size_t>(view_bytes_));
+		}
+#endif
 	}
 
 	bool Link::create(const LinkNames& names)
@@ -197,7 +203,8 @@ namespace halfcraft
 		if (base_) {
 			return true;
 		}
-		const auto          size = proto::kMappingBytes;
+		const auto size = proto::kMappingBytes;
+#ifdef _WIN32
 		SECURITY_ATTRIBUTES access{ sizeof(access), shared_with_this_user(), FALSE };
 		mapping_ = ::CreateFileMappingW(INVALID_HANDLE_VALUE, access.lpSecurityDescriptor ? &access : nullptr, PAGE_READWRITE,
 			static_cast<DWORD>(size >> 32), static_cast<DWORD>(size & 0xFFFFFFFF), names.mapping.c_str());
@@ -226,11 +233,43 @@ namespace halfcraft
 			mapping_ = nullptr;
 			return false;
 		}
+#else
+		// posix shared memory, only this user's (0600). the first of client.dll and server.dll to come
+		// makes it (server.dll maps the link first); a stale one minecraft still holds is reused.
+		const std::string name = posix_name(names.mapping);
+		bool              existed = false;
+		int               fd = ::shm_open(name.c_str(), O_RDWR | O_CREAT | O_EXCL, 0600);
+		if (fd < 0 && errno == EEXIST) {
+			existed = true;
+			fd = ::shm_open(name.c_str(), O_RDWR, 0600);
+		}
+		if (fd < 0) {
+			log_error("shm_open of %s failed (%d)", name.c_str(), errno);
+			return false;
+		}
+		// the object is always made whole (minecraft maps all of it); tmpfs gives it pages as they're
+		// touched. one an older build made smaller grows: minecraft checks the layout anyway
+		struct stat st{};
+		if (::fstat(fd, &st) != 0 || static_cast<std::uint64_t>(st.st_size) < size) {
+			if (::ftruncate(fd, static_cast<off_t>(size)) != 0) {
+				log_error("ftruncate of %s to %llu MB failed (%d)", name.c_str(), static_cast<unsigned long long>(size >> 20), errno);
+				::close(fd);
+				return false;
+			}
+		}
+		void* view = ::mmap(nullptr, static_cast<std::size_t>(view_bytes), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+		::close(fd);  // the mapping keeps the object
+		if (view == MAP_FAILED) {
+			log_error("mmap of %llu MB of %s failed (%d)", static_cast<unsigned long long>(view_bytes >> 20), name.c_str(), errno);
+			return false;
+		}
+		base_ = static_cast<std::uint8_t*>(view);
+#endif
 		view_bytes_ = view_bytes;
 		// a named link's lines say which mapping it is (the default link's stay as they were)
-		const std::wstring which = names.id.empty() ? std::wstring() : L" for link " + widen(names.id) + L" (" + names.mapping + L")";
+		const std::string which = names.id.empty() ? std::string() : " for link " + names.id + " (" + system_name(names.mapping) + ")";
 		if (!reset) {
-			log_info("shared memory attached (%llu of %llu MB, %s)%ls", static_cast<unsigned long long>(view_bytes >> 20),
+			log_info("shared memory attached (%llu of %llu MB, %s)%s", static_cast<unsigned long long>(view_bytes >> 20),
 				static_cast<unsigned long long>(size >> 20), existed ? "existing" : "new", which.c_str());
 			return true;
 		}
@@ -254,15 +293,13 @@ namespace halfcraft
 		skip_pending(proto::kOffRenderRing + proto::kRenRingHeadOff, proto::kOffRenderRing + proto::kRenRingTailOff);
 		skip_pending(proto::kOffEventRing + proto::kEventRingHeadOff, proto::kOffEventRing + proto::kEventRingTailOff);
 		header->layout = proto::kLayout;
-		header->hostPid = ::GetCurrentProcessId();
-		header->hostHeartbeatMs = ::GetTickCount64();
+		header->hostPid = process_id();
+		header->hostHeartbeatMs = tick_ms();
 		// the performance counter only grows, so no two runs on this machine share a session
-		LARGE_INTEGER now{};
-		::QueryPerformanceCounter(&now);
-		as_atomic(header->hostSession).store(static_cast<std::uint64_t>(now.QuadPart) | 1, std::memory_order_release);
+		as_atomic(header->hostSession).store(static_cast<std::uint64_t>(qpc_now()) | 1, std::memory_order_release);
 		as_atomic(header->magic).store(proto::kMagic, std::memory_order_release);
 
-		log_info("shared memory created (%llu MB, %s)%ls", static_cast<unsigned long long>(size >> 20), existed ? "reused" : "new", which.c_str());
+		log_info("shared memory created (%llu MB, %s)%s", static_cast<unsigned long long>(size >> 20), existed ? "reused" : "new", which.c_str());
 		return true;
 	}
 
@@ -278,7 +315,7 @@ namespace halfcraft
 			return false;
 		}
 		const auto last = as_atomic(at<proto::Header>(proto::kOffHeader)->mcHeartbeatMs).load(std::memory_order_acquire);
-		return last != 0 && ::GetTickCount64() - last < MC_TIMEOUT_MS;
+		return last != 0 && tick_ms() - last < MC_TIMEOUT_MS;
 	}
 
 	std::uint32_t Link::mc_pid() const
@@ -289,7 +326,7 @@ namespace halfcraft
 	void Link::heartbeat()
 	{
 		if (base_) {
-			as_atomic(at<proto::Header>(proto::kOffHeader)->hostHeartbeatMs).store(::GetTickCount64(), std::memory_order_release);
+			as_atomic(at<proto::Header>(proto::kOffHeader)->hostHeartbeatMs).store(tick_ms(), std::memory_order_release);
 		}
 	}
 
@@ -297,9 +334,15 @@ namespace halfcraft
 	{
 		if (base_) {
 			seqlock_write(at<proto::HostState>(proto::kOffHostState), state);
+			auto& frame = at<proto::Header>(proto::kOffHeader)->hostFrame;
+			as_atomic(frame).fetch_add(1, std::memory_order_release);
+#ifdef _WIN32
 			if (frame_event_) {
 				::SetEvent(frame_event_);
 			}
+#else
+			futex_wake_all(&frame);
+#endif
 		}
 	}
 
@@ -538,7 +581,7 @@ namespace halfcraft
 		for (int attempt = 0; attempt < 16; ++attempt) {
 			const auto s1 = seq.load(std::memory_order_acquire);
 			if (s1 & 1) {
-				_mm_pause();
+				cpu_pause();
 				continue;
 			}
 			const auto count = std::min(src->count, proto::kMaxWorldEntities);
@@ -562,7 +605,7 @@ namespace halfcraft
 		for (int attempt = 0; attempt < 16; ++attempt) {
 			const auto s1 = seq.load(std::memory_order_acquire);
 			if (s1 & 1) {
-				_mm_pause();
+				cpu_pause();
 				continue;
 			}
 			const auto count = std::min(src->count, proto::kMaxMobs);

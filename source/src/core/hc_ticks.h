@@ -5,6 +5,7 @@
 #include <deque>
 
 #include "halfcraft_protocol.h"
+#include "hc_platform.h"
 
 // minecraft's 20 Hz physics ticks, interpolated on source's frame clock (what minecraft's own
 // renderer does with partial ticks). sampling minecraft's per-frame position instead judders,
@@ -16,9 +17,6 @@
 
 namespace halfcraft
 {
-
-	/// QueryPerformanceCounter now (the clock minecraft stamps its ticks with).
-	std::int64_t qpc_now();
 
 	struct McPose
 	{
@@ -32,7 +30,7 @@ namespace halfcraft
 	{
 	public:
 		/// @param mc - the latest minecraft state (read this frame)
-		/// @param now_qpc - QueryPerformanceCounter now
+		/// @param now_qpc - qpc_now()
 		/// @return where minecraft's player is at our render time
 		McPose sample(const proto::McState& mc, std::int64_t now_qpc);
 		void   reset();
