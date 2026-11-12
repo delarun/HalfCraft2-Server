@@ -258,6 +258,18 @@ namespace halfcraft
 			}
 		}
 
+		/// tools/toolsblack, which seals the ends of the map's pipes and tunnels, undrawn while holes are near, or drawn
+		/// again: it's no shader of ours, so a hole dug through it stayed a black wall in front of minecraft's blocks behind
+		/// (the void around it is black anyway)
+		void hide_black_seals(bool hide)
+		{
+			IMaterial* black = materials->FindMaterial("tools/toolsblack", TEXTURE_GROUP_WORLD, false);
+			if (black && !black->IsErrorMaterial() && black->GetMaterialVarFlag(MATERIAL_VAR_NO_DRAW) != hide) {
+				black->SetMaterialVarFlag(MATERIAL_VAR_NO_DRAW, hide);
+				log_info("dig: tools/toolsblack %s", hide ? "undrawn while holes are near" : "drawn again");
+			}
+		}
+
 		/// want: r_novis 1 and r_portalsopenall 1, so the rooms behind the holes near the player are drawn (the map's
 		/// vis hides them behind its walls); otherwise their values from before come back. both are cheats:
 		/// ConVar::SetValue doesn't check FCVAR_CHEAT (the flag stays on them), but the engine puts cheats back to their
@@ -277,9 +289,11 @@ namespace halfcraft
 				}
 				set_cvar(novis, 1);
 				set_cvar(portals, 1);
+				hide_black_seals(true);
 			} else {
 				set_cvar(novis, g_old_novis);
 				set_cvar(portals, g_old_portals);
+				hide_black_seals(false);
 				g_vis_forced = false;
 				log_info("dig: no holes here: r_novis %d, r_portalsopenall %d again", g_old_novis, g_old_portals);
 			}

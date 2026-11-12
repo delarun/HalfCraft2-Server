@@ -75,6 +75,20 @@ namespace halfcraft
 			/// in the player's view, after the leaf system's pass (opaque or translucent): draws this
 			/// section if that pass didn't and it's near the camera and in the view (client_draw_unplaced_blocks).
 			void draw_unplaced(bool translucent, const Vector& eye);
+			/// hc_debug_blocks_near: one line about this section, if it's within {@code reach} units of the eye
+			void debug(const Vector& eye, float reach) const
+			{
+				const Vector lo = origin_ + mins_, hi = origin_ + maxs_;
+				const float  dx = std::max({ lo.x - eye.x, eye.x - hi.x, 0.0f }), dy = std::max({ lo.y - eye.y, eye.y - hi.y, 0.0f }),
+							 dz = std::max({ lo.z - eye.z, eye.z - hi.z, 0.0f });
+				if (dx * dx + dy * dy + dz * dz > reach * reach) {
+					return;
+				}
+				Msg("section %d %d %d: %zu vertices, %zu opaque / %zu translucent meshes, drawn frame %d (now %d), handle %s, culled %d, "
+					"bounds (%.0f %.0f %.0f)-(%.0f %.0f %.0f)\n",
+					sx_, sy_, sz_, vertices_.size(), opaque_.size(), translucent_.size(), drawn_frame_[0], gpGlobals->framecount,
+					m_hRenderHandle != INVALID_CLIENT_RENDER_HANDLE ? "placed" : "none", engine->CullBox(lo, hi) ? 1 : 0, lo.x, lo.y, lo.z, hi.x, hi.y, hi.z);
+			}
 
 			// IClientRenderable
 			const Vector&      GetRenderOrigin() override { return origin_; }
@@ -208,18 +222,44 @@ namespace halfcraft
 			return 1;
 		}
 
+		/// whether a box is wholly behind the camera, along the way it looks. engine->CullBox culls by the map's areas too,
+		/// and a section in the rock behind the map's walls is in none of them; view->GetFrustum() was another view's in
+		/// this pass. both culled nearly every section in front: what's behind goes, the gpu clips the rest
+		bool behind_view(const Vector& lo, const Vector& hi)
+		{
+			const Vector centre = (lo + hi) * 0.5f;
+			const float  radius = (hi - lo).Length() * 0.5f;
+			return DotProduct(centre - CurrentViewOrigin(), CurrentViewForward()) < -radius;
+		}
+
+		// hc_debug_blocks_near: the last frame's unplaced pass (opaque): sections looked at, drawn by the leaf system, too
+		// far, culled, drawn here
+		int g_unplaced_frame = -1, g_unplaced[5] = {};
+
 		void Section::draw_unplaced(bool translucent, const Vector& eye)
 		{
+			if (!translucent && g_unplaced_frame != gpGlobals->framecount) {
+				g_unplaced_frame = gpGlobals->framecount;
+				std::fill(std::begin(g_unplaced), std::end(g_unplaced), 0);
+			}
 			const auto& meshes = translucent ? translucent_ : opaque_;
+			g_unplaced[0] += translucent ? 0 : 1;
 			if (meshes.empty() || drawn_frame_[translucent ? 1 : 0] == gpGlobals->framecount) {
+				g_unplaced[1] += translucent ? 0 : 1;
 				return;
 			}
 			const Vector lo = origin_ + mins_, hi = origin_ + maxs_;
 			const float  across_x = std::max({ lo.x - eye.x, eye.x - hi.x, 0.0f });
 			const float  across_y = std::max({ lo.y - eye.y, eye.y - hi.y, 0.0f });
-			if (across_x * across_x + across_y * across_y > UNPLACED_NEAR_UNITS * UNPLACED_NEAR_UNITS || engine->CullBox(lo, hi)) {
+			if (across_x * across_x + across_y * across_y > UNPLACED_NEAR_UNITS * UNPLACED_NEAR_UNITS) {
+				g_unplaced[2] += translucent ? 0 : 1;
 				return;
 			}
+			if (behind_view(lo, hi)) {
+				g_unplaced[3] += translucent ? 0 : 1;
+				return;
+			}
+			g_unplaced[4] += translucent ? 0 : 1;
 			// the state DrawOpaqueRenderable / DrawTranslucentRenderable set for a renderable
 			float color[3];
 			GetColorModulation(color);
@@ -537,6 +577,18 @@ namespace halfcraft
 			*now = b.solids_version;
 		}
 		return changed;
+	}
+}
+
+CON_COMMAND(hc_debug_blocks_near, "halfcraft: minecraft's sections within 2 sections of the camera: their meshes, whether the player's view drew them, culled")
+{
+	const Vector& eye = MainViewOrigin();
+	Msg("camera (%.0f %.0f %.0f), holes near %d; unplaced pass in frame %d: %d sections, %d drawn by the leaf system or empty, %d far, %d culled, "
+		"%d drawn\n",
+		eye.x, eye.y, eye.z, halfcraft::dig_holes_near() ? 1 : 0, halfcraft::g_unplaced_frame, halfcraft::g_unplaced[0], halfcraft::g_unplaced[1],
+		halfcraft::g_unplaced[2], halfcraft::g_unplaced[3], halfcraft::g_unplaced[4]);
+	for (auto& entry : halfcraft::blocks().sections) {
+		entry.second->debug(eye, 2.0f * 16.0f * static_cast<float>(halfcraft::UNITS_PER_BLOCK));
 	}
 }
 
