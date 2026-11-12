@@ -5,6 +5,7 @@
 #include "cbase.h"
 #include "ai_basenpc.h"
 #include "player.h"
+#include "server/hc_mobs.h"
 
 #include "tier0/valve_minmax_off.h"
 
@@ -14,6 +15,7 @@
 
 #include "core/hc_log.h"
 #include "core/hc_sandbox.h"
+#include "server/hc_sandbox.h"
 #include "server/hc_players.h"
 #include "shared/hc_hooks.h"
 
@@ -29,6 +31,9 @@ namespace halfcraft
 			"their vehicles unlocked: from the next map load");
 
 		ConVar hc_respawn("hc_respawn", "1", FCVAR_GAMEDLL, "in the sandbox, the map's enemies spawn again where the map put them after they die");
+		ConVar hc_peaceful("hc_peaceful", "0", FCVAR_GAMEDLL,
+			"the halfcraft server's minecraft is on peaceful (kEvDifficulty sets it): the npcs that hate the players are taken out, and the map's "
+			"enemies don't come back while it is");
 		ConVar hc_respawn_delay("hc_respawn_delay", "180", FCVAR_GAMEDLL, "seconds a dead enemy of the map stays dead at least", true, 5.0f, false, 0.0f);
 		ConVar hc_respawn_distance("hc_respawn_distance", "1500", FCVAR_GAMEDLL,
 			"a dead enemy of the map spawns again only while no player is closer to its spot than this (units)", true, 0.0f, false, 0.0f);
@@ -100,10 +105,17 @@ namespace halfcraft
 			void FrameUpdatePostEntityThink() override
 			{
 				const double now = gpGlobals->curtime;
-				if (enemies_.empty() || !hc_respawn.GetBool() || now < next_check_) {
+				if (now < next_check_) {
 					return;
 				}
 				next_check_ = now + 1.0;
+				const bool peaceful = hc_peaceful.GetBool();
+				if (peaceful) {
+					take_out_enemies();
+				}
+				if (enemies_.empty() || !hc_respawn.GetBool()) {
+					return;
+				}
 				for (Enemy& enemy : enemies_) {
 					CBaseEntity* entity = enemy.entity.Get();
 					if (entity && entity->IsAlive()) {
@@ -113,9 +125,40 @@ namespace halfcraft
 						enemy.died_at = now;
 						continue;
 					}
-					if (sandbox::respawn_due(enemy.died_at, now, hc_respawn_delay.GetFloat(), nearest_player(enemy.spot), hc_respawn_distance.GetFloat())) {
+					if (!peaceful && sandbox::respawn_due(enemy.died_at, now, hc_respawn_delay.GetFloat(), nearest_player(enemy.spot), hc_respawn_distance.GetFloat())) {
 						respawn(enemy);
 					}
+				}
+			}
+
+			/// hc_peaceful: every npc that hates a player goes (the map's enemies as if they died: they come back once it's
+			/// over), but minecraft's mobs' stand-ins (minecraft keeps its own peaceful)
+			void take_out_enemies()
+			{
+				CBasePlayer* someone = nullptr;
+				for_each_player([&](CBasePlayer& player) {
+					if (!someone) {
+						someone = &player;
+					}
+				});
+				if (!someone) {
+					return;
+				}
+				int                       removed = 0;
+				CAI_BaseNPC**             npcs = g_AI_Manager.AccessAIs();
+				std::vector<CBaseEntity*> out;
+				for (int i = 0; i < g_AI_Manager.NumAIs(); ++i) {
+					CAI_BaseNPC* npc = npcs[i];
+					if (npc && npc->IsAlive() && !is_mob_stand_in(npc) && npc->IRelationType(someone) == D_HT) {
+						out.push_back(npc);
+					}
+				}
+				for (CBaseEntity* npc : out) {
+					UTIL_Remove(npc);
+					++removed;
+				}
+				if (removed > 0) {
+					log_info("sandbox: peaceful: %d of half-life's enemies taken out", removed);
 				}
 			}
 
@@ -177,6 +220,19 @@ namespace halfcraft
 		};
 
 		RespawnSystem g_respawn;
+	}
+
+	void sandbox_set_peaceful(bool peaceful)
+	{
+		if (hc_peaceful.GetBool() != peaceful) {
+			hc_peaceful.SetValue(peaceful ? 1 : 0);
+			log_info("sandbox: minecraft is %s: half-life's enemies %s", peaceful ? "on peaceful" : "off peaceful",
+				peaceful ? "are taken out and stay out" : "come back as they did");
+		}
+	}
+
+	namespace
+	{
 
 		CON_COMMAND(hc_debug_respawn, "halfcraft: the sandbox's enemies that come back, and how each one is; hc_debug_respawn kill takes them all out (sv_cheats)")
 		{

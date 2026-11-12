@@ -41,6 +41,9 @@ kEvPlaceProp = { value = 19, doc = """
 a player used a Half-Life prop's item: weapon = its PropKind (0: the model the kEvPropModel pieces
 before it name), attackerId = its PropClass; the host puts the prop where the player looks (the
 halfcraft server's: playerId's player)""" }
+kEvDifficulty = { value = 21, doc = """
+(the halfcraft server's) Minecraft's difficulty, when it changes and every few seconds: a = 0 peaceful,
+1 easy, 2 normal, 3 hard. Peaceful takes the map's enemies out (hc_peaceful), and keeps them out""" }
 kEvPropModel = { value = 20, doc = """
 a piece of a model's path for the kEvPlaceProp that follows (playerId's): actorId = the piece's
 index, attackerId = the path's bytes, a/b/c/d/flags/weapon = up to 24 of them (little-endian, a's

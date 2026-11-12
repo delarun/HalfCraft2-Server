@@ -23,6 +23,7 @@
 #include "server/hc_mobs.h"
 #include "server/hc_players.h"
 #include "server/hc_props.h"
+#include "server/hc_sandbox.h"
 #include "server/hc_vitals.h"
 #include "shared/hc_hooks.h"
 #include "shared/hc_bridge.h"
@@ -263,6 +264,9 @@ namespace halfcraft
 				break;
 			case proto::kEvPropModel:
 				prop_model_piece(0, event.actorId, event.attackerId, model_words(event).data());
+				break;
+			case proto::kEvDifficulty:
+				sandbox_set_peaceful(event.a < 0.5f);
 				break;
 			case proto::kEvPlaceProp:
 				place_prop(player, event.weapon, event.attackerId, take_prop_model(0));

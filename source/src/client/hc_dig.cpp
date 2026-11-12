@@ -7,6 +7,7 @@
 #include "tier1/callqueue.h"
 #include "tier1/utlbuffer.h"
 #include "view.h"
+#include "detailobjectsystem.h"
 
 #include "tier0/valve_minmax_off.h"
 #include <algorithm>
@@ -663,10 +664,52 @@ namespace halfcraft
 		return ready && hc_dig.GetBool();
 	}
 
+	namespace
+	{
+		// the store's version the map's detail props were last hidden at (UINT32_MAX: never), and when
+		std::uint32_t g_details_version = UINT32_MAX;
+		double        g_details_since = 0.0;
+		// seconds between two looks at every detail prop of the map, while cells are being dug
+		constexpr double DETAILS_INTERVAL = 0.25;
+
+		/// whether the cell a detail prop stands in is dug: its origin is on the ground, the cell is the one just over it
+		bool detail_dug(const Vector& origin)
+		{
+			const Vector mins(origin.x - 0.5f, origin.y - 0.5f, origin.z + 0.5f), maxs(origin.x + 0.5f, origin.y + 0.5f, origin.z + 1.5f);
+			return box_dug(mins, maxs);
+		}
+
+		/// the map's detail props (grass, bushes) on dug cells out of sight, back once theirs aren't (detailobjectsystem.cpp):
+		/// when the dug cells changed, at most every DETAILS_INTERVAL
+		void hide_dug_details()
+		{
+			std::uint32_t version = 0;
+			{
+				auto&                       d = store();
+				std::lock_guard<std::mutex> lock(d.lock);
+				version = d.version;
+			}
+			const double now = Plat_FloatTime();
+			if (version == g_details_version || now - g_details_since < DETAILS_INTERVAL) {
+				return;
+			}
+			const bool first = g_details_version == UINT32_MAX;
+			g_details_version = version;
+			g_details_since = now;
+			const int hidden = HalfCraft_HideDugDetailObjects(detail_dug);
+			if (first || hidden > 0) {
+				log_info("dig: %d of the map's detail props (grass, bushes) out of sight on dug cells", hidden);
+			}
+		}
+	}
+
 	void dig_update(const McVec& player, bool in_game)
 	{
 		expire_pending(Plat_FloatTime());  // after this frame's messages: a section they brought again stays
 		readback_update();
+		if (in_game) {
+			hide_dug_details();
+		}
 		const bool dug = mask_update(player);
 		// hc_dig 0 leaves the holes cut out (it only stops new ones): they're seen through all the same. the ones
 		// outside the mask are drawn closed: nothing to see through there
@@ -682,6 +725,7 @@ namespace halfcraft
 	void dig_level_loaded()
 	{
 		g_mask_resync.store(true, std::memory_order_release);
+		g_details_version = UINT32_MAX;  // the level's detail props are new: all of them looked at again
 	}
 
 	void dig_post_render_vgui()

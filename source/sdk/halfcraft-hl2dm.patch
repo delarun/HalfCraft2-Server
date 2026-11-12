@@ -168,6 +168,156 @@ index 8daa9f65..a005ffb5 100644
  		view->UpdateShadowDepthTexture( m_DummyColorTexture, shadowDepthTexture, shadowView );
  
  		// Associate the shadow depth texture and stencil bit with the flashlight for use during scene rendering
+diff --git a/src/game/client/detailobjectsystem.cpp b/src/game/client/detailobjectsystem.cpp
+index 3518fa90..d3d3bfd1 100644
+--- a/src/game/client/detailobjectsystem.cpp
++++ b/src/game/client/detailobjectsystem.cpp
+@@ -124,6 +124,8 @@ public:
+ 					 unsigned char shapeAngle, unsigned char shapeSize, unsigned char swayAmount );
+ 
+ 	void SetAlpha( unsigned char alpha ) { m_Alpha = alpha; }
++	// halfcraft: moved out of sight, or back (HalfCraft_HideDugDetailObjects)
++	void HalfCraftSetOrigin( const Vector &origin ) { m_Origin = origin; }
+ 
+ 
+ 	// IClientUnknown overrides.
+@@ -473,6 +475,21 @@ private:
+ 	CUtlVector<DetailPropSpriteDict_t>		m_DetailSpriteDictFlipped;
+ 	CUtlVector<DetailPropLightstylesLump_t>	m_DetailLighting;
+ 	FastSpriteX4_t *m_pFastSpriteData;
++	int m_nHalfCraftFastSpriteX4Count; // halfcraft: how many m_pFastSpriteData has
++
++public:
++	// halfcraft: see HalfCraft_HideDugDetailObjects
++	int HalfCraftHideDug( bool (*dug)( const Vector &origin ) );
++
++private:
++	// halfcraft: a detail prop moved out of sight: a model's (lane -1) or a fast sprite's lane, and where it was
++	struct HalfCraftHidden_t
++	{
++		int m_nIndex;
++		int m_nLane;
++		Vector m_Origin;
++	};
++	CUtlVector<HalfCraftHidden_t> m_HalfCraftHidden;
+ 
+ 	// Necessary to get sprites to batch correctly
+ 	CMaterialReference m_DetailSpriteMaterial;
+@@ -509,6 +526,62 @@ IDetailObjectSystem* DetailObjectSystem()
+ 	return &s_DetailObjectSystem;
+ }
+ 
++// halfcraft: how far down a detail prop goes out of sight: past any view's detail distance, and no map is that deep
++static const float HALFCRAFT_HIDDEN_DROP = 100000.0f;
++
++int HalfCraft_HideDugDetailObjects( bool (*dug)( const Vector &origin ) )
++{
++	return s_DetailObjectSystem.HalfCraftHideDug( dug );
++}
++
++int CDetailObjectSystem::HalfCraftHideDug( bool (*dug)( const Vector &origin ) )
++{
++	// the ones out of sight first: back where they were once their cell isn't dug
++	for ( int i = m_HalfCraftHidden.Count() - 1; i >= 0; --i )
++	{
++		const HalfCraftHidden_t &hidden = m_HalfCraftHidden[i];
++		if ( dug( hidden.m_Origin ) )
++			continue;
++		if ( hidden.m_nLane < 0 )
++		{
++			m_DetailObjects[hidden.m_nIndex].HalfCraftSetOrigin( hidden.m_Origin );
++		}
++		else
++		{
++			FastSpriteX4_t &sprite = m_pFastSpriteData[hidden.m_nIndex];
++			SubFloat( sprite.m_Pos.x, hidden.m_nLane ) = hidden.m_Origin.x;
++			SubFloat( sprite.m_Pos.y, hidden.m_nLane ) = hidden.m_Origin.y;
++			SubFloat( sprite.m_Pos.z, hidden.m_nLane ) = hidden.m_Origin.z;
++		}
++		m_HalfCraftHidden.FastRemove( i );
++	}
++	const float limit = -HALFCRAFT_HIDDEN_DROP * 0.5f;
++	for ( int j = 0; j < m_DetailObjects.Count(); ++j )
++	{
++		CDetailModel &model = m_DetailObjects[j];
++		const Vector origin = model.GetRenderOrigin();
++		if ( origin.z < limit || !dug( origin ) )
++			continue;
++		HalfCraftHidden_t hidden = { j, -1, origin };
++		m_HalfCraftHidden.AddToTail( hidden );
++		model.HalfCraftSetOrigin( origin - Vector( 0, 0, HALFCRAFT_HIDDEN_DROP ) );
++	}
++	for ( int j = 0; m_pFastSpriteData && j < m_nHalfCraftFastSpriteX4Count; ++j )
++	{
++		FastSpriteX4_t &sprite = m_pFastSpriteData[j];
++		for ( int lane = 0; lane < 4; ++lane )
++		{
++			const Vector origin( SubFloat( sprite.m_Pos.x, lane ), SubFloat( sprite.m_Pos.y, lane ), SubFloat( sprite.m_Pos.z, lane ) );
++			if ( origin.z < limit || !dug( origin ) )
++				continue;
++			HalfCraftHidden_t hidden = { j, lane, origin };
++			m_HalfCraftHidden.AddToTail( hidden );
++			SubFloat( sprite.m_Pos.z, lane ) = origin.z - HALFCRAFT_HIDDEN_DROP;
++		}
++	}
++	return m_HalfCraftHidden.Count();
++}
++
+ 
+ 
+ //-----------------------------------------------------------------------------
+@@ -1400,6 +1473,8 @@ void CDetailModel::DrawSwayingQuad( CMeshBuilder &meshBuilder, Vector vecOrigin,
+ CDetailObjectSystem::CDetailObjectSystem() : m_DetailSpriteDict( 0, 32 ), m_DetailObjectDict( 0, 32 ), m_DetailSpriteDictFlipped( 0, 32 )
+ {
+ 	m_pFastSpriteData = NULL;
++	m_nHalfCraftFastSpriteX4Count = 0;
++	m_HalfCraftHidden.RemoveAll();
+ 	m_pSortInfo = NULL;
+ 	m_pFastSortInfo = NULL;
+ 	m_pBuildoutBuffer = NULL;
+@@ -1430,6 +1505,8 @@ CDetailObjectSystem::~CDetailObjectSystem()
+ 	{
+ 		MemAlloc_FreeAligned( m_pFastSpriteData );
+ 		m_pFastSpriteData = NULL;
++	m_nHalfCraftFastSpriteX4Count = 0;
++	m_HalfCraftHidden.RemoveAll();
+ 	}
+ 	FreeSortBuffers();
+ 
+@@ -1546,6 +1623,8 @@ void CDetailObjectSystem::LevelShutdownPreEntity()
+ 	{
+ 		MemAlloc_FreeAligned( m_pFastSpriteData );
+ 		m_pFastSpriteData = NULL;
++	m_nHalfCraftFastSpriteX4Count = 0;
++	m_HalfCraftHidden.RemoveAll();
+ 	}
+ 	FreeSortBuffers();
+ 
+@@ -1758,6 +1837,7 @@ void CDetailObjectSystem::UnserializeModels( CUtlBuffer& buf )
+ 			MemAlloc_AllocAligned( 
+ 				( nNumFastSpritesToAllocate >> 2 ) * sizeof( FastSpriteX4_t ),
+ 				sizeof( fltx4 ) ) );
++		m_nHalfCraftFastSpriteX4Count = nNumFastSpritesToAllocate >> 2;
+ 	}
+ 
+ 	m_DetailObjects.EnsureCapacity( nNumOldStyleObjects  );
+diff --git a/src/game/client/detailobjectsystem.h b/src/game/client/detailobjectsystem.h
+index 11bb696f..c603f4f7 100644
+--- a/src/game/client/detailobjectsystem.h
++++ b/src/game/client/detailobjectsystem.h
+@@ -52,6 +52,12 @@ public:
+ //-----------------------------------------------------------------------------
+ IDetailObjectSystem* DetailObjectSystem();
+ 
++// halfcraft: the map's detail props (grass, bushes) on cells minecraft dug are moved out of sight, and back where they
++// were once their cell isn't dug any more (hc_dig.cpp, when the dug cells change)
++// @param dug - whether the cell a detail prop stands in is dug (its origin, source coords)
++// @return how many are out of sight now
++int HalfCraft_HideDugDetailObjects( bool (*dug)( const Vector &origin ) );
++
+ 
+ #endif // DETAILOBJECTSYSTEM_H
+ 
 diff --git a/src/game/client/history_resource.cpp b/src/game/client/history_resource.cpp
 index c0743b41..69148bf8 100644
 --- a/src/game/client/history_resource.cpp

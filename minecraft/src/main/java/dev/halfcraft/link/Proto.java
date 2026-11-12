@@ -10,7 +10,7 @@ public final class Proto {
 
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	public static final int LAYOUT = 0xE1CCFBFE;
+	public static final int LAYOUT = 0xBE1A5063;
 
 	// ---- where each part of the mapping is
 	public static final long OFF_HEADER = 0x00;
@@ -432,6 +432,9 @@ public final class Proto {
 	// before it name), attackerId = its PropClass; the host puts the prop where the player looks (the
 	// halfcraft server's: playerId's player)
 	public static final int EV_PLACE_PROP = 19;
+	// (the halfcraft server's) Minecraft's difficulty, when it changes and every few seconds: a = 0 peaceful,
+	// 1 easy, 2 normal, 3 hard. Peaceful takes the map's enemies out (hc_peaceful), and keeps them out
+	public static final int EV_DIFFICULTY = 21;
 	// a piece of a model's path for the EV_PLACE_PROP that follows (playerId's): actorId = the piece's
 	// index, attackerId = the path's bytes, a/b/c/d/flags/weapon = up to 24 of them (little-endian, a's
 	// low byte first)

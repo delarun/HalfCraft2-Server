@@ -9,7 +9,7 @@ namespace halfcraft::proto
 {
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	inline constexpr std::uint32_t kLayout = 0xE1CCFBFE;
+	inline constexpr std::uint32_t kLayout = 0xBE1A5063;
 
 	// ---- where each part of the mapping is ----------------------------------------------------------
 	inline constexpr std::uint64_t kOffHeader = 0x00;
@@ -464,6 +464,9 @@ namespace halfcraft::proto
 		// before it name), attackerId = its PropClass; the host puts the prop where the player looks (the
 		// halfcraft server's: playerId's player)
 		kEvPlaceProp = 19,
+		// (the halfcraft server's) Minecraft's difficulty, when it changes and every few seconds: a = 0 peaceful,
+		// 1 easy, 2 normal, 3 hard. Peaceful takes the map's enemies out (hc_peaceful), and keeps them out
+		kEvDifficulty = 21,
 		// a piece of a model's path for the kEvPlaceProp that follows (playerId's): actorId = the piece's
 		// index, attackerId = the path's bytes, a/b/c/d/flags/weapon = up to 24 of them (little-endian, a's
 		// low byte first)

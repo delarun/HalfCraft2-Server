@@ -30,10 +30,32 @@ public final class HalfCraftServer {
 				link.tick();
 			}
 			CollisionRelay.tick(server);
+			difficulty(server);
 			if (!LINKS.isEmpty() && LINKS.getFirst().active()) {
 				dev.halfcraft.link.ServerPlayers.tick(server, LINKS.getFirst());
 			}
 		});
+	}
+
+	/** Ticks between two EV_DIFFICULTY that say the same: a Source server that comes up later hears it soon. */
+	private static final int DIFFICULTY_EVERY = 100;
+	private static int sentDifficulty = -1, difficultyTicks;
+
+	/** Minecraft's difficulty to the Source servers (EV_DIFFICULTY): peaceful takes Half-Life's enemies out too. */
+	private static void difficulty(net.minecraft.server.MinecraftServer server) {
+		if (LINKS.isEmpty()) {
+			return;
+		}
+		int difficulty = server.getWorldData().getDifficulty().getId();
+		if (difficulty == sentDifficulty && ++difficultyTicks < DIFFICULTY_EVERY) {
+			return;
+		}
+		if (difficulty != sentDifficulty) {
+			HalfCraft.LOG.info("HalfCraft: Minecraft's difficulty is {}: telling the Source servers", server.getWorldData().getDifficulty().getSerializedName());
+		}
+		sentDifficulty = difficulty;
+		difficultyTicks = 0;
+		dev.halfcraft.link.HostSide.pushEvent(dev.halfcraft.link.Proto.EV_DIFFICULTY, 0, difficulty, 0.0F, 0.0F, 0.0F, 0);
 	}
 
 	/** The server links, empty but on a dedicated server. */
