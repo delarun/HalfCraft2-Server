@@ -1,8 +1,5 @@
 package dev.halfcraft.link;
 
-import java.nio.file.InvalidPathException;
-import java.nio.file.Path;
-
 /**
  * Half-Life's answer to a screenshot request (STR_SCREENSHOT): {@code "ok <request> <width> <height> <path>"},
  * its finished frame in a temporary file of width * height RGB8 pixels (top row first), or
@@ -56,12 +53,9 @@ public record ScreenshotAnswer(int request, int width, int height, String path, 
 		return 0xFF000000 | (rgb[offset + 2] & 0xFF) << 16 | (rgb[offset + 1] & 0xFF) << 8 | rgb[offset] & 0xFF;
 	}
 
+	// the file's name after either system's separator: Half-Life on windows says C:\...\name, on linux /.../name
 	private static boolean isFrameFile(String path) {
-		try {
-			Path name = Path.of(path).getFileName();
-			return name != null && name.toString().startsWith(FILE_PREFIX) && name.toString().endsWith(FILE_SUFFIX);
-		} catch (InvalidPathException e) {
-			return false;
-		}
+		String name = path.substring(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1);
+		return name.startsWith(FILE_PREFIX) && name.endsWith(FILE_SUFFIX);
 	}
 }

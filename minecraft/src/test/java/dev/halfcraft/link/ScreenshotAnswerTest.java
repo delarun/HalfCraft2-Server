@@ -22,6 +22,13 @@ class ScreenshotAnswerTest {
 	}
 
 	@Test
+	void readsALinuxFrame() {
+		String frame = "/tmp/Гордон Фримен/halfcraft-screenshot-123-1.rgb";
+		assertEquals(frame, ScreenshotAnswer.parse("ok 2 1920 1080 " + frame).path());
+		assertNull(ScreenshotAnswer.parse("ok 2 1920 1080 /home/gordon/.minecraft/options.txt"));
+	}
+
+	@Test
 	void readsHalfLifesOwnRequest() {
 		assertEquals(ScreenshotAnswer.HOST_REQUEST, ScreenshotAnswer.parse("ok 0 1920 1080 " + FRAME).request());
 	}
