@@ -136,6 +136,34 @@ public final class HostLink {
 		}
 	}
 
+	/** The client's own Half-Life's collision ring, for HostCollision. */
+	public static final dev.halfcraft.world.CollisionSource COLLISION = new dev.halfcraft.world.CollisionSource() {
+		@Override
+		public MemorySegment segment() {
+			return shm;
+		}
+
+		@Override
+		public long head() {
+			return collisionHead();
+		}
+
+		@Override
+		public long tail() {
+			return collisionTail();
+		}
+
+		@Override
+		public void setTail(long tail) {
+			setCollisionTail(tail);
+		}
+
+		@Override
+		public void lost() {
+			pushEvent(EV_COLLISION_LOST, 0, 0.0F, 0.0F, 0.0F, 0.0F, 0);
+		}
+	};
+
 	/** The high-resolution clock Half-Life reads too (QueryPerformanceCounter, linux: CLOCK_MONOTONIC ns), so tick timestamps line up across processes. */
 	public static long qpc() {
 		return SYSTEM.qpc();

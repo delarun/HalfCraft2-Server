@@ -336,10 +336,20 @@ public final class HostCollision {
 		return BlockPos.asLong(rx, ry, rz);
 	}
 
-	public static synchronized void startConsumer() {
+	// where the ring is read from: the client's own Half-Life (HostLink) or a dedicated server's server.so (ServerLink)
+	private static volatile CollisionSource source = dev.halfcraft.link.HostLink.COLLISION;
+
+	/** Starts reading the client's own Half-Life's collision (single player). */
+	public static void startConsumer() {
+		startConsumer(dev.halfcraft.link.HostLink.COLLISION);
+	}
+
+	/** Starts reading a collision ring: the client's own or, on the HalfCraft server, a server link's. */
+	public static synchronized void startConsumer(CollisionSource from) {
 		if (consumer != null) {
 			return;
 		}
+		source = from;
 		consumer = new Thread(HostCollision::consumeLoop, "HalfCraft collision");
 		consumer.setDaemon(true);
 		consumer.start();
@@ -366,12 +376,13 @@ public final class HostCollision {
 
 	/** Processes all pending collision messages. Returns true if anything was consumed. */
 	private static boolean drainOnce() {
-		MemorySegment s = HostLink.segment();
+		CollisionSource from = source;
+		MemorySegment s = from.segment();
 		if (s == null) {
 			return false;
 		}
-		long head = HostLink.collisionHead();
-		long tail = HostLink.collisionTail();
+		long head = from.head();
+		long tail = from.tail();
 		if (tail > head || head - tail > CR_DATA_BYTES) {
 			// the ring's indices disagree: what's between isn't Half-Life's messages
 			lostPlace(head, tail);
@@ -404,7 +415,7 @@ public final class HostCollision {
 			}
 			tail += align8(COL_MSG_HEADER_BYTES + payloadBytes);
 		}
-		HostLink.setCollisionTail(tail);
+		from.setTail(tail);
 		return true;
 	}
 
@@ -422,8 +433,8 @@ public final class HostCollision {
 			lostPlaceLogged = now;
 			HalfCraft.LOG.warn("HalfCraft: collision ring out of step (written up to {}, read up to {}): resyncing", head, tail);
 		}
-		HostLink.setCollisionTail(head);
-		HostLink.pushEvent(EV_COLLISION_LOST, 0, 0.0F, 0.0F, 0.0F, 0.0F, 0);
+		source.setTail(head);
+		source.lost();
 	}
 
 	/** A freshly started client joins whatever collision epoch Half-Life is already on. */

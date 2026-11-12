@@ -147,9 +147,29 @@ namespace halfcraft
 
 	void CollisionStreamer::update(const McVec& player, CollisionSource& source)
 	{
-		const int  prx = static_cast<int>(std::floor(player.x / REGION_SIZE));
-		const int  pry = static_cast<int>(std::floor(player.y / REGION_SIZE));
-		const int  prz = static_cast<int>(std::floor(player.z / REGION_SIZE));
+		update(std::vector<McVec>{ player }, source);
+	}
+
+	void CollisionStreamer::update(const std::vector<McVec>& players, CollisionSource& source)
+	{
+		if (players.empty()) {
+			return;
+		}
+		struct Centre
+		{
+			int rx, ry, rz;
+		};
+		std::vector<Centre> centres;
+		centres.reserve(players.size());
+		for (const McVec& player : players) {
+			centres.push_back({ static_cast<int>(std::floor(player.x / REGION_SIZE)), static_cast<int>(std::floor(player.y / REGION_SIZE)),
+				static_cast<int>(std::floor(player.z / REGION_SIZE)) });
+		}
+		auto near_any = [&](const std::array<int, 3>& r) {
+			return std::any_of(centres.begin(), centres.end(), [&](const Centre& c) {
+				return std::abs(r[0] - c.rx) <= RADIUS + 1 && std::abs(r[2] - c.rz) <= RADIUS + 1 && r[1] - c.ry >= -BELOW - 1 && r[1] - c.ry <= ABOVE + 1;
+			});
+		};
 		const auto start = Clock::now();
 		int        done = 0;
 
@@ -157,8 +177,8 @@ namespace halfcraft
 		while (!urgent_.empty() && done < MAX_HARVESTS_PER_FRAME * 2) {
 			const auto r = urgent_.back();
 			urgent_.pop_back();
-			if (std::abs(r[0] - prx) > RADIUS + 1 || std::abs(r[2] - prz) > RADIUS + 1 || r[1] - pry < -BELOW - 1 || r[1] - pry > ABOVE + 1) {
-				harvested_.erase(region_key(r[0], r[1], r[2]));  // far away: sent again whenever it's needed
+			if (!near_any(r)) {
+				harvested_.erase(region_key(r[0], r[1], r[2]));  // far from everyone: sent again whenever it's needed
 				continue;
 			}
 			harvest(r[0], r[1], r[2], source);
@@ -173,12 +193,14 @@ namespace halfcraft
 			harvested_[region_key(r[0], r[1], r[2])] = start;
 			++done;
 		}
-		bool complete = true;  // every region around the player has gone out
-		for (const auto& o : offsets_) {
-			const int  rx = prx + o[0], ry = pry + o[1], rz = prz + o[2];
-			const auto key = region_key(rx, ry, rz);
-			const auto it = harvested_.find(key);
-			const bool is_near = std::abs(o[0]) <= 1 && std::abs(o[2]) <= 1 && o[1] >= -1 && o[1] <= 0;
+		bool complete = true;  // every region around the players has gone out
+		for (std::size_t i = 0; i < centres.size() * offsets_.size() && complete; ++i) {
+			const Centre& c = centres[i / offsets_.size()];
+			const auto&   o = offsets_[i % offsets_.size()];
+			const int     rx = c.rx + o[0], ry = c.ry + o[1], rz = c.rz + o[2];
+			const auto    key = region_key(rx, ry, rz);
+			const auto    it = harvested_.find(key);
+			const bool    is_near = std::abs(o[0]) <= 1 && std::abs(o[2]) <= 1 && o[1] >= -1 && o[1] <= 0;
 			if (it != harvested_.end() && !(is_near && start - it->second > REFRESH_NEAR)) {
 				continue;
 			}
@@ -215,7 +237,7 @@ namespace halfcraft
 		}
 
 		// bound memory: drop bookkeeping for far-away regions.
-		if (harvested_.size() > offsets_.size() * 4) {
+		if (harvested_.size() > offsets_.size() * 4 * centres.size()) {
 			harvested_.clear();
 		}
 	}

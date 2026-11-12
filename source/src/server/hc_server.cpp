@@ -26,6 +26,7 @@
 #include "server/hc_hazards.h"
 #include "server/hc_held_blocks.h"
 #include "server/hc_mobs.h"
+#include "server/hc_players.h"
 #include "server/hc_push.h"
 #include "server/hc_vitals.h"
 #include "server/hc_weapons.h"
@@ -75,10 +76,13 @@ namespace halfcraft
 			{
 				set_log_sink(console_sink);
 				world_.set_dig(&dig_);
-				// the link client.dll creates: server.dll starts first, from the same command line and environment
+				// the link client.dll creates: server.dll starts first, from the same command line and environment.
+				// a dedicated server has no client.dll: server.dll makes the link itself, for the halfcraft server's
+				// minecraft (docs/server/PLAN.md), and keeps its heartbeat
 				const char* parameter = CommandLine()->FindParm(LINK_ID_PARAMETER) ? CommandLine()->ParmValue(LINK_ID_PARAMETER, "") : nullptr;
 				const auto  link = process_link_names(parameter);
-				link_ready_ = link && link_.attach(*link);
+				dedicated_ = engine->IsDedicatedServer();
+				link_ready_ = link && (dedicated_ ? link_.create(*link) : link_.attach(*link));
 				if (link_ready_) {
 					streamer_ = std::make_unique<CollisionStreamer>(link_);
 				}
@@ -103,6 +107,11 @@ namespace halfcraft
 				vitals_.reset();
 				checkpoints_.on_level_loaded(slot_);
 				g_last_puppet_move = -1.0f;  // the clock starts over with the map
+				if (dedicated_ && streamer_) {
+					// no client.dll counts the levels for a dedicated server: each one is a new epoch, which
+					// minecraft's collision starts over on
+					streamer_->reset(++epoch_);
+				}
 			}
 
 			// a save is being written (its entities come next)
@@ -115,6 +124,8 @@ namespace halfcraft
 			}
 
 			void FrameUpdatePostEntityThink() override;
+			/// a dedicated server's streaming (FrameUpdatePostEntityThink)
+			void stream_for_players();
 
 			/// hc_debug_voxels
 			void check_voxels(int radius)
@@ -160,6 +171,7 @@ namespace halfcraft
 			Link                               link_;
 			bool                               link_ready_ = false;
 			std::unique_ptr<CollisionStreamer> streamer_;
+			bool                               dedicated_ = false;  // srcds: no client.dll, no local player
 			WorldCollision                     world_;
 			BlockSolids                        solids_;
 			DigState                           dig_;
@@ -214,6 +226,11 @@ namespace halfcraft
 			}
 			debug_target_.update(link_, player);
 
+			if (dedicated_) {
+				stream_for_players();
+				return;
+			}
+
 			proto::HostState host{};
 			if (!link_.read_host_state(host)) {
 				return;
@@ -238,6 +255,29 @@ namespace halfcraft
 			const McVec centre{ host.posX, host.posY, host.posZ };
 			world_.track_movers(centre, *streamer_);
 			streamer_->update(centre, world_);
+		}
+
+		void HalfCraftServerSystem::stream_for_players()
+		{
+			// a dedicated server: the minecraft server's heartbeat is the link's own, and collision streams around
+			// every living player, where source has them (each one's minecraft follows its source player)
+			link_.heartbeat();
+			for (const McVec& point : combat_.take_collision_wanted()) {
+				streamer_->want_below(point);
+			}
+			std::vector<McVec> players;
+			for_each_player([&](CBasePlayer& player) {
+				if (player.IsAlive()) {
+					const Vector origin = player.GetAbsOrigin();
+					const float  feet[3] = { origin.x, origin.y, origin.z };
+					players.push_back(source_to_mc(feet, slot_));
+				}
+			});
+			if (players.empty() || !link_.mc_alive()) {
+				return;
+			}
+			world_.track_movers(players.front(), *streamer_);
+			streamer_->update(players, world_);
 		}
 
 		void HalfCraftServerSystem::outline_cut_pieces(CBasePlayer* player) const

@@ -69,6 +69,10 @@ namespace halfcraft
 		/// once per frame, main thread.
 		/// @param player - the player's feet in minecraft coords
 		void update(const McVec& player, CollisionSource& source);
+		/// once per frame, main thread, with more than one player (a server's): the regions around each of them go
+		/// out, the first player's first; a region is far only when it's far from every one.
+		/// @param players - each player's feet in minecraft coords
+		void update(const std::vector<McVec>& players, CollisionSource& source);
 		/// something moved: regions overlapping the minecraft box [lo, hi] go out again first.
 		void invalidate(const float lo[3], const float hi[3]);
 		/// minecraft wants the collision under a point (a projectile falling out of the bottom of the

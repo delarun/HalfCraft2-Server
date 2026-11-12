@@ -31,10 +31,21 @@ public final class HalfCraft implements ModInitializer {
 		dev.halfcraft.world.HostDig.init();
 		ServerLifecycleEvents.SERVER_STARTED.register(HalfCraft::configureServer);
 		// Half-Life's saves roll Minecraft's world and player back too
-		ServerLifecycleEvents.SERVER_STARTED.register(dev.halfcraft.world.Rollback::load);
+		// (a dedicated server's world simply lives on: no half-life saves to roll back to)
+		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+			if (!server.isDedicatedServer()) {
+				dev.halfcraft.world.Rollback.load(server);
+			}
+		});
 		// the gravity gun's blocks go back where they were taken from, before the rollback writes its log
 		ServerLifecycleEvents.SERVER_STOPPING.register(dev.halfcraft.world.HeldBlocks::putAllBack);
-		ServerLifecycleEvents.SERVER_STOPPING.register(dev.halfcraft.world.Rollback::unload);
+		ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+			if (!server.isDedicatedServer()) {
+				dev.halfcraft.world.Rollback.unload(server);
+			}
+		});
+		// the halfcraft server's minecraft: its links to the source servers
+		HalfCraftServer.init();
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents.CHUNK_UNLOAD.register(dev.halfcraft.world.Rollback::chunkUnloading);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
 			giveStarterKit(handler.getPlayer());
