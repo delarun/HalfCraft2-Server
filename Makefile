@@ -10,6 +10,8 @@
 #   make mc-test [LINK=guest]      the minecraft test client (after test-start): its own run folder and world
 #   make run [ENGINE=hl2] [MAP=d1_canals_01] [ARGS="+sv_cheats 1"] [LINK=guest] [WAIT=1]
 #   make cmd [LINK=guest] C="'save a' 'load a'"   console commands into the running game (that link's copy)
+#   make server [MAP=d2_coast_01] [PORT=27015]   linux: the source dedicated server with halfcraft (HALFCRAFT_SRCDS)
+#   make server-layout             linux: lay out build/server/game-hl2dm for it (make server does it too)
 #   make test-start [ENGINE=hl2]   set the game's saves and settings aside for tests; make test-stop: back
 #   make patches                   write sdk edits back into source\sdk\halfcraft-<engine>.patch
 #   make proto                     protocol\halfcraft_protocol.h, minecraft's Proto.java and ProtoStructs.java from protocol\schema
@@ -35,7 +37,7 @@ SHELL := /bin/bash
 PYTHON := python3
 endif
 .DEFAULT_GOAL := help
-.PHONY: help setup build mc mc-run mc-test run cmd test-start test-stop patches proto package format lint tidy core-test clean
+.PHONY: help setup build mc mc-run mc-test run cmd server server-layout test-start test-stop patches proto package format lint tidy core-test clean
 
 ENGINE ?= all
 RUN_ENGINE := $(if $(filter all,$(ENGINE)),hl2dm,$(ENGINE))
@@ -47,9 +49,9 @@ WAIT ?=
 
 help:
 ifeq ($(OS),Windows_NT)
-	@Get-Content Makefile | Select-Object -First 25 | ForEach-Object { $$_ -replace '^# ?', '' }
+	@Get-Content Makefile | Select-Object -First 27 | ForEach-Object { $$_ -replace '^# ?', '' }
 else
-	@head -n 25 Makefile | sed -E 's/^# ?//'
+	@head -n 27 Makefile | sed -E 's/^# ?//'
 endif
 
 setup:
@@ -72,6 +74,12 @@ run:
 
 cmd:
 	$(PYTHON) tools/game/hl2_command.py $(if $(LINK),--link $(LINK)) -- $(C)
+
+server:
+	$(PYTHON) tools/server/srcds.py run --map $(or $(MAP),d2_coast_01) $(if $(PORT),--port $(PORT)) --log build/server/srcds-$(or $(PORT),27015).log
+
+server-layout:
+	$(PYTHON) tools/server/srcds.py layout
 
 test-start:
 	$(PYTHON) tools/game/test_session.py start --engine $(ENGINE)
