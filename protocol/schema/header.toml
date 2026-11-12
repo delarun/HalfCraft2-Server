@@ -14,12 +14,14 @@ kMappingName = { type = "wstring", value = 'Local\HalfCraft_v1', doc = """
 the default link's mapping. a link id (HALFCRAFT_LINK on both sides, or source's -hc_link: 1-32 of A-Z
 a-z 0-9 _ -) gives a pair (a source game and its minecraft) a link of its own, <this>.<id>, so two pairs
 can run on one pc. a link's frame event is <its mapping>_frame, an auto-reset event the host sets after
-each frame's HostState: minecraft waits on it to draw once per host frame, asleep in between. minecraft
-holds a mutex <its mapping>_minecraft while it runs. core/hc_link_names.h, LinkNames.java and
+each frame's HostState: minecraft waits on it to draw once per host frame, asleep in between (on linux it
+waits on Header.hostFrame, a futex, instead). minecraft holds a mutex <its mapping>_minecraft while it runs
+(on linux a lock on the file /dev/shm/<its name>). on linux the mapping is the posix shared memory object
+/<the name after Local\\> (/dev/shm/HalfCraft_v1, /dev/shm/HalfCraft_v1.b). core/hc_link_names.h, LinkNames.java and
 tools/halfcraft/link.py build the names""" }
 
 [structs.Header]
-size = 0x28
+size = 0x30
 java = "H"
 
 [structs.Header.fields]
@@ -27,8 +29,12 @@ magic = "u32"
 layout = { type = "u32", doc = "kLayout: Minecraft links only with a host built from the same schema" }
 hostPid = "u32"
 mcPid = "u32"
-hostHeartbeatMs = { type = "u64", doc = "GetTickCount64() at the host's last frame", java = "H_HOST_HEARTBEAT" }
-mcHeartbeatMs = { type = "u64", doc = "GetTickCount64() at MC's last frame", java = "H_MC_HEARTBEAT" }
+hostHeartbeatMs = { type = "u64", doc = "the host's last frame on the tick clock (GetTickCount64, linux: CLOCK_MONOTONIC ms)", java = "H_HOST_HEARTBEAT" }
+mcHeartbeatMs = { type = "u64", doc = "MC's last frame on the tick clock", java = "H_MC_HEARTBEAT" }
 hostSession = { type = "u64", doc = """
 a new value each time a host sets the link up; Minecraft starts its side over when it changes.
 the pid alone can't tell: a restarted game may get the pid of the one before it""" }
+hostFrame = { type = "u32", doc = """
+counts the host's frames: the host adds one after each frame's HostState. on linux, where there are no named
+events, it is a futex: the host wakes its waiters and minecraft waits while it holds the count it last saw""" }
+pad2C = "u32"

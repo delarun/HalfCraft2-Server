@@ -10,7 +10,7 @@ public final class Proto {
 
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	public static final int LAYOUT = 0xC0DBDF76;
+	public static final int LAYOUT = 0x4D909C9E;
 
 	// ---- where each part of the mapping is
 	public static final long OFF_HEADER = 0x00;
@@ -50,8 +50,10 @@ public final class Proto {
 	// the default link's mapping. a link id (HALFCRAFT_LINK on both sides, or source's -hc_link: 1-32 of A-Z
 	// a-z 0-9 _ -) gives a pair (a source game and its minecraft) a link of its own, <this>.<id>, so two pairs
 	// can run on one pc. a link's frame event is <its mapping>_frame, an auto-reset event the host sets after
-	// each frame's HostState: minecraft waits on it to draw once per host frame, asleep in between. minecraft
-	// holds a mutex <its mapping>_minecraft while it runs. core/hc_link_names.h, LinkNames.java and
+	// each frame's HostState: minecraft waits on it to draw once per host frame, asleep in between (on linux it
+	// waits on Header.hostFrame, a futex, instead). minecraft holds a mutex <its mapping>_minecraft while it runs
+	// (on linux a lock on the file /dev/shm/<its name>). on linux the mapping is the posix shared memory object
+	// /<the name after Local\> (/dev/shm/HalfCraft_v1, /dev/shm/HalfCraft_v1.b). core/hc_link_names.h, LinkNames.java and
 	// tools/halfcraft/link.py build the names
 	public static final String MAPPING_NAME = "Local\\HalfCraft_v1";
 
@@ -60,12 +62,15 @@ public final class Proto {
 	public static final long H_LAYOUT = 0x04; // LAYOUT: Minecraft links only with a host built from the same schema
 	public static final long H_HOST_PID = 0x08;
 	public static final long H_MC_PID = 0x0C;
-	public static final long H_HOST_HEARTBEAT = 0x10; // GetTickCount64() at the host's last frame
-	public static final long H_MC_HEARTBEAT = 0x18; // GetTickCount64() at MC's last frame
+	public static final long H_HOST_HEARTBEAT = 0x10; // the host's last frame on the tick clock (GetTickCount64, linux: CLOCK_MONOTONIC ms)
+	public static final long H_MC_HEARTBEAT = 0x18; // MC's last frame on the tick clock
 	// a new value each time a host sets the link up; Minecraft starts its side over when it changes.
 	// the pid alone can't tell: a restarted game may get the pid of the one before it
 	public static final long H_HOST_SESSION = 0x20;
-	public static final int H_BYTES = 0x28;
+	// counts the host's frames: the host adds one after each frame's HostState. on linux, where there are no named
+	// events, it is a futex: the host wakes its waiters and minecraft waits while it holds the count it last saw
+	public static final long H_HOST_FRAME = 0x28;
+	public static final int H_BYTES = 0x30;
 
 	// ---- host -> MC state @0x100 --------------------------------------------------------------------
 	public static final int WATER_GRID_SIZE = 16;

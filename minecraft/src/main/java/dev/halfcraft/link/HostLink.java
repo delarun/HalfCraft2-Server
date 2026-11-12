@@ -4,14 +4,8 @@ import static dev.halfcraft.link.Proto.*;
 import static java.lang.foreign.ValueLayout.*;
 
 import dev.halfcraft.HalfCraft;
-import java.lang.foreign.Arena;
-import java.lang.foreign.FunctionDescriptor;
-import java.lang.foreign.Linker;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.SymbolLookup;
-import java.lang.invoke.MethodHandle;
 import java.lang.invoke.VarHandle;
-import java.nio.charset.StandardCharsets;
 
 /**
  * The Minecraft end of the shared-memory link. Half-Life owns the mapping; we open it when it
@@ -19,52 +13,16 @@ import java.nio.charset.StandardCharsets;
  * (LinkNames): the default one without it.
  */
 public final class HostLink {
-	private static final int FILE_MAP_ALL_ACCESS = 0xF001F;
 	// Half-Life's loading screens can stall its heartbeat for several seconds.
 	private static final long HEARTBEAT_TIMEOUT_MS = 8000;
 
 	private static final VarHandle INT = JAVA_INT.varHandle();
 	private static final VarHandle LONG = JAVA_LONG.varHandle();
 
-	private static final MethodHandle OPEN_FILE_MAPPING;
-	// OpenFileMappingW's GetLastError, captured right after the call (the JVM may change it later).
-	private static final java.lang.foreign.StructLayout CALL_STATE = Linker.Option.captureStateLayout();
-	private static final VarHandle LAST_ERROR = CALL_STATE.varHandle(java.lang.foreign.MemoryLayout.PathElement.groupElement("GetLastError"));
-	private static final MemorySegment OPEN_STATE = Arena.global().allocate(CALL_STATE);
-	private static int lastOpenError = -1;
-	private static final MethodHandle MAP_VIEW_OF_FILE;
-	private static final MethodHandle GET_TICK_COUNT64;
-	private static final MethodHandle GET_CURRENT_PROCESS_ID;
-	private static final MethodHandle QUERY_PERFORMANCE_COUNTER;
-	private static final MethodHandle QUERY_PERFORMANCE_FREQUENCY;
-	private static final MethodHandle CREATE_MUTEX;
-	private static final MethodHandle OPEN_EVENT;
-	private static final MethodHandle WAIT_FOR_SINGLE_OBJECT;
-	private static final int SYNCHRONIZE = 0x00100000;
-	private static MemorySegment runningMutex;
+	// the operating system's side of the link: windows' named objects or linux's /dev/shm and futex
+	private static final LinkSystem SYSTEM = LinkSystem.current();
 	// the link this Minecraft is on (HALFCRAFT_LINK's); null for an id that isn't one: no Half-Life then, rather than another pair's
 	private static final LinkNames LINK = linkFromEnvironment();
-	// Half-Life's frame event (LINK.frameEvent()); null before it's open, or from a Half-Life without one
-	private static volatile MemorySegment frameEvent;
-	private static final MemorySegment QPC_OUT = Arena.global().allocate(JAVA_LONG);
-
-	static {
-		Linker linker = Linker.nativeLinker();
-		SymbolLookup k32 = SymbolLookup.libraryLookup("kernel32", Arena.global());
-		OPEN_FILE_MAPPING = linker.downcallHandle(
-			k32.find("OpenFileMappingW").orElseThrow(), FunctionDescriptor.of(ADDRESS, JAVA_INT, JAVA_INT, ADDRESS), Linker.Option.captureCallState("GetLastError")
-		);
-		MAP_VIEW_OF_FILE = linker.downcallHandle(
-			k32.find("MapViewOfFile").orElseThrow(), FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_LONG)
-		);
-		GET_TICK_COUNT64 = linker.downcallHandle(k32.find("GetTickCount64").orElseThrow(), FunctionDescriptor.of(JAVA_LONG));
-		GET_CURRENT_PROCESS_ID = linker.downcallHandle(k32.find("GetCurrentProcessId").orElseThrow(), FunctionDescriptor.of(JAVA_INT));
-		QUERY_PERFORMANCE_COUNTER = linker.downcallHandle(k32.find("QueryPerformanceCounter").orElseThrow(), FunctionDescriptor.of(JAVA_INT, ADDRESS));
-		QUERY_PERFORMANCE_FREQUENCY = linker.downcallHandle(k32.find("QueryPerformanceFrequency").orElseThrow(), FunctionDescriptor.of(JAVA_INT, ADDRESS));
-		CREATE_MUTEX = linker.downcallHandle(k32.find("CreateMutexW").orElseThrow(), FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT, ADDRESS));
-		OPEN_EVENT = linker.downcallHandle(k32.find("OpenEventW").orElseThrow(), FunctionDescriptor.of(ADDRESS, JAVA_INT, JAVA_INT, ADDRESS));
-		WAIT_FOR_SINGLE_OBJECT = linker.downcallHandle(k32.find("WaitForSingleObject").orElseThrow(), FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT));
-	}
 
 	private static LinkNames linkFromEnvironment() {
 		String id = System.getenv(LinkNames.VARIABLE);
@@ -79,52 +37,21 @@ public final class HostLink {
 	}
 
 	/**
-	 * Sleeps until Half-Life finishes a frame (it sets its frame event after each HostState) or ms pass.
-	 * False without the event (a Half-Life before it): the caller naps and polls instead.
+	 * Sleeps until Half-Life finishes a frame (it marks each after its HostState: windows' frame event, linux's
+	 * futex) or ms pass. False with nothing to wait on (a Half-Life before it): the caller naps and polls instead.
 	 */
 	public static boolean waitForHostFrame(int ms) {
-		MemorySegment event = frameEvent;
-		if (event == null) {
-			return false;
-		}
-		try {
-			int result = (int) WAIT_FOR_SINGLE_OBJECT.invokeExact(event, ms);
-			return result != -1; // WAIT_FAILED
-		} catch (Throwable t) {
-			return false;
-		}
-	}
-
-	// the frame event, once the mapping is open: it outlives a Half-Life restart while this holds it, as the mapping does
-	private static void openFrameEvent() {
-		if (frameEvent != null) {
-			return;
-		}
-		try (Arena arena = Arena.ofConfined()) {
-			MemorySegment name = arena.allocateFrom(LINK.frameEvent(), StandardCharsets.UTF_16LE);
-			MemorySegment handle = (MemorySegment) OPEN_EVENT.invokeExact(SYNCHRONIZE, 0, name);
-			if (handle.address() != 0) {
-				frameEvent = handle;
-				HalfCraft.LOG.info("HalfCraft: waiting on Half-Life's frame event between frames");
-			}
-		} catch (Throwable t) {
-			HalfCraft.LOG.warn("HalfCraft: couldn't open Half-Life's frame event", t);
-		}
+		return SYSTEM.waitForHostFrame(shm, ms);
 	}
 
 	/**
-	 * Holds the link's named mutex ("<its mapping>_minecraft") for as long as this Minecraft runs, so a
-	 * launcher knows not to start another one on it (even before the two games have linked up).
+	 * Marks this Minecraft as running on its link for as long as it runs (windows: the named mutex
+	 * "&lt;its mapping&gt;_minecraft"; linux: a lock on that name's file in /dev/shm), so a launcher knows not to
+	 * start another one on it (even before the two games have linked up).
 	 */
-	public static synchronized void announceRunning() {
-		if (runningMutex != null || LINK == null) {
-			return;
-		}
-		try (Arena arena = Arena.ofConfined()) {
-			MemorySegment name = arena.allocateFrom(LINK.minecraftMutex(), StandardCharsets.UTF_16LE);
-			runningMutex = (MemorySegment) CREATE_MUTEX.invokeExact(MemorySegment.NULL, 0, name);
-		} catch (Throwable t) {
-			HalfCraft.LOG.warn("HalfCraft: couldn't create the running-Minecraft mutex", t);
+	public static void announceRunning() {
+		if (LINK != null) {
+			SYSTEM.announceRunning(LINK);
 		}
 	}
 
@@ -165,10 +92,6 @@ public final class HostLink {
 	/** Try to open the mapping at most once a second. Call regularly from the render thread. */
 	public static void poll() {
 		if (shm != null) {
-			if (frameEvent == null && System.currentTimeMillis() - lastOpenAttempt >= 1000) {
-				lastOpenAttempt = System.currentTimeMillis();
-				openFrameEvent();
-			}
 			LONG.setRelease(shm, OFF_HEADER + H_MC_HEARTBEAT, tickCount());
 			long session = (long) LONG.getAcquire(shm, OFF_HEADER + H_HOST_SESSION);
 			if (session != hostSession) {
@@ -188,26 +111,11 @@ public final class HostLink {
 			return;
 		}
 		lastOpenAttempt = now;
-		try (Arena arena = Arena.ofConfined()) {
-			MemorySegment name = arena.allocateFrom(LINK.mapping(), StandardCharsets.UTF_16LE);
-			MemorySegment handle = (MemorySegment) OPEN_FILE_MAPPING.invokeExact(OPEN_STATE, FILE_MAP_ALL_ACCESS, 0, name);
-			if (handle.address() == 0) {
-				// Say why, once per reason: 2 is "Half-Life hasn't made it yet" (normal while it loads),
-				// 5 is "not allowed" (a Half-Life run as administrator, before 0.1.1).
-				int error = (int) LAST_ERROR.get(OPEN_STATE, 0L);
-				if (error != lastOpenError) {
-					lastOpenError = error;
-					HalfCraft.LOG.info("HalfCraft: can't open Half-Life's shared memory yet (Windows error {}{})", error,
-						error == 2 ? ": Half-Life hasn't created it yet" : error == 5 ? ": access denied; is Half-Life running as administrator?" : "");
-				}
+		try {
+			MemorySegment seg = SYSTEM.openMapping(LINK);
+			if (seg == null) {
 				return;
 			}
-			MemorySegment view = (MemorySegment) MAP_VIEW_OF_FILE.invokeExact(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0L);
-			if (view.address() == 0) {
-				HalfCraft.LOG.error("HalfCraft: MapViewOfFile failed");
-				return;
-			}
-			MemorySegment seg = view.reinterpret(MAPPING_BYTES);
 			int magic = seg.get(JAVA_INT, OFF_HEADER + H_MAGIC);
 			int layout = seg.get(JAVA_INT, OFF_HEADER + H_LAYOUT);
 			if (magic != MAGIC || layout != LAYOUT) {
@@ -215,7 +123,7 @@ public final class HostLink {
 					Integer.toHexString(layout), Integer.toHexString(magic), Integer.toHexString(LAYOUT));
 				return;
 			}
-			seg.set(JAVA_INT, OFF_HEADER + H_MC_PID, (int) GET_CURRENT_PROCESS_ID.invokeExact());
+			seg.set(JAVA_INT, OFF_HEADER + H_MC_PID, SYSTEM.pid());
 			LONG.setRelease(seg, OFF_HEADER + H_MC_HEARTBEAT, tickCount());
 			hostPid = seg.get(JAVA_INT, OFF_HEADER + H_HOST_PID);
 			hostSession = (long) LONG.getAcquire(seg, OFF_HEADER + H_HOST_SESSION);
@@ -228,32 +136,19 @@ public final class HostLink {
 		}
 	}
 
-	/** QueryPerformanceCounter: the same clock Half-Life reads, so tick timestamps line up across processes. */
-	public static synchronized long qpc() {
-		try {
-			int ok = (int) QUERY_PERFORMANCE_COUNTER.invokeExact(QPC_OUT);
-			return QPC_OUT.get(JAVA_LONG, 0);
-		} catch (Throwable t) {
-			throw new RuntimeException(t);
-		}
+	/** The high-resolution clock Half-Life reads too (QueryPerformanceCounter, linux: CLOCK_MONOTONIC ns), so tick timestamps line up across processes. */
+	public static long qpc() {
+		return SYSTEM.qpc();
 	}
 
 	/** Ticks per second of {@link #qpc()}. */
-	public static synchronized long qpcFrequency() {
-		try {
-			int ok = (int) QUERY_PERFORMANCE_FREQUENCY.invokeExact(QPC_OUT);
-			return QPC_OUT.get(JAVA_LONG, 0);
-		} catch (Throwable t) {
-			throw new RuntimeException(t);
-		}
+	public static long qpcFrequency() {
+		return SYSTEM.qpcFrequency();
 	}
 
+	/** Milliseconds on the clock both sides stamp their heartbeats with (GetTickCount64, linux: CLOCK_MONOTONIC). */
 	public static long tickCount() {
-		try {
-			return (long) GET_TICK_COUNT64.invokeExact();
-		} catch (Throwable t) {
-			throw new RuntimeException(t);
-		}
+		return SYSTEM.tickCount();
 	}
 
 	// ---- HostState (read) -------------------------------------------------------------------

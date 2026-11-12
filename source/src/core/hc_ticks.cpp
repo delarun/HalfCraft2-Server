@@ -3,19 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
-
 namespace halfcraft
 {
-	std::int64_t qpc_now()
-	{
-		LARGE_INTEGER now;
-		::QueryPerformanceCounter(&now);
-		return now.QuadPart;
-	}
-
 	void TickInterpolator::reset()
 	{
 		history_.clear();
@@ -33,12 +22,7 @@ namespace halfcraft
 			return pose;
 		}
 
-		static const std::int64_t qpc_freq = [] {
-			LARGE_INTEGER f;
-			::QueryPerformanceFrequency(&f);
-			return f.QuadPart;
-		}();
-		const double       qpc_per_ms = double(qpc_freq) / 1000.0;
+		const double       qpc_per_ms = double(qpc_frequency()) / 1000.0;
 		const std::int64_t period = std::max<std::int64_t>(1, std::llround(double(mc.tickMs) * qpc_per_ms));
 
 		if (history_.empty() || history_.back().state.tickQpc != mc.tickQpc) {

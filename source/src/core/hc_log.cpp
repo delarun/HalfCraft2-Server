@@ -4,17 +4,24 @@
 #include <cstdarg>
 #include <cstdio>
 
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#endif
 
 namespace halfcraft
 {
 	namespace
 	{
+		/// before the host points the log at its console: the debugger on windows, stderr on linux
 		void debugger_sink(int /*severity*/, const char* line)
 		{
+#ifdef _WIN32
 			::OutputDebugStringA(line);
 			::OutputDebugStringA("\n");
+#else
+			std::fprintf(stderr, "%s\n", line);
+#endif
 		}
 
 		std::atomic<LogSink> g_sink{ debugger_sink };
