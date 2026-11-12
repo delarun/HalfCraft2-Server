@@ -444,7 +444,7 @@ index fb59bca9..bc4ff2e8 100644
  	CBoneCache *pcache = Studio_GetBoneCache( m_boneCacheHandle );
  	int boneMask = BONE_USED_BY_HITBOX | BONE_USED_BY_ATTACHMENT;
 diff --git a/src/game/server/hl2/hl2_client.cpp b/src/game/server/hl2/hl2_client.cpp
-index 6125de82..de3422bf 100644
+index 6125de82..2cd71b40 100644
 --- a/src/game/server/hl2/hl2_client.cpp
 +++ b/src/game/server/hl2/hl2_client.cpp
 @@ -26,6 +26,8 @@
@@ -456,7 +456,17 @@ index 6125de82..de3422bf 100644
  // memdbgon must be the last include file in a .cpp file!!!
  #include "tier0/memdbgon.h"
  
-@@ -136,6 +138,9 @@ void respawn( CBaseEntity *pEdict, bool fCopyCorpse )
+@@ -64,6 +66,9 @@ void ClientActive( edict_t *pEdict, bool bLoadGame )
+ 	if ( !bLoadGame )
+ 	{
+ 		pPlayer->Spawn();
++
++		// halfcraft: in a game for more than one the suit and the loadout, which the map handed out at its start
++		halfcraft::server_player_spawned( pPlayer );
+ 	}
+ }
+ 
+@@ -136,6 +141,9 @@ void respawn( CBaseEntity *pEdict, bool fCopyCorpse )
  
  		// respawn player
  		pEdict->Spawn();

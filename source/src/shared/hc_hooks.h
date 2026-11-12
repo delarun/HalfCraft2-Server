@@ -204,5 +204,10 @@ namespace halfcraft
 	/// or coop; singleplayer reloads instead): CBasePlayer::Event_Killed left the player non-solid, and Spawn()
 	/// doesn't clear that. makes the player solid again, so it blocks the others and touches triggers (hc_coop.cpp).
 	void server_player_respawned(CBasePlayer* player);
+
+	/// ClientActive (hl2_client.cpp), right after a new player's first Spawn(), and server_player_respawned: in a game
+	/// for more than one, the player gets the suit (hc_spawn_suit) and the weapons of hc_spawn_loadout they lack, with
+	/// two clips of each one's ammo at least; nothing in singleplayer (hc_coop.cpp).
+	void server_player_spawned(CBasePlayer* player);
 #endif
 }

@@ -112,6 +112,7 @@ def run(srcds: Path, *, map: str, port: int, players: int, link_id: str, log: Pa
     if log is None:
         return subprocess.run(command, cwd=srcds, env=env, check=False).returncode
     # srcds holds its output back when it isn't on a terminal: script gives it one, and the log gets every line
+    log = log.resolve()  # script runs in the server's folder
     log.parent.mkdir(parents=True, exist_ok=True)
     shown = " ".join(command)
     return subprocess.run(["script", "-qfc", shown, str(log)], cwd=srcds, env=env, check=False).returncode
