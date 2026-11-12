@@ -4,7 +4,7 @@
 
 // the characters windows types for the game (WM_CHAR): the player's own keyboard layout, with its
 // dead keys, AltGr and input methods. keys alone can't say which character they type on a layout
-// that isn't us qwerty.
+// that isn't us qwerty. on linux the same comes from sdl2's text events (SDL_TEXTINPUT).
 
 namespace halfcraft
 {

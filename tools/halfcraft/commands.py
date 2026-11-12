@@ -1,10 +1,11 @@
 """other programs: every one runs with a timeout, and one that runs over goes with everything it started."""
 
+import os
 import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from halfcraft import REPO, ToolError
+from halfcraft import REPO, ToolError, posix
 
 
 def run(
@@ -48,4 +49,7 @@ def git(*arguments: str | Path, repo: Path = REPO, timeout: float = 60, what: st
 
 def kill_tree(pid: int) -> None:
     """ends a process and every process it started (a .bat's cmd.exe leaves its java behind otherwise)."""
+    if os.name != "nt":
+        posix.kill_tree(pid)
+        return
     subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], capture_output=True, timeout=30, check=False)

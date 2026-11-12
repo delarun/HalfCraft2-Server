@@ -29,6 +29,7 @@
 #include "client/hc_texture.h"
 #include "client/hc_things.h"
 #include "core/hc_log.h"
+#include "core/hc_module.h"
 #include "core/hc_units.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -1205,7 +1206,7 @@ RecvPropInt(RECVINFO(m_iHeldSlot)),
 }
 
 // server.dll hands minecraft's arrows that stuck in npcs over (hc_bridge.h)
-extern "C" __declspec(dllexport) void HalfCraft_StickArrow(int entindex, const float hit[3], const float direction[3])
+extern "C" HC_EXPORT void HalfCraft_StickArrow(int entindex, const float hit[3], const float direction[3])
 {
 	halfcraft::things().stuck_arrows().queue(entindex, Vector(hit[0], hit[1], hit[2]), Vector(direction[0], direction[1], direction[2]));
 }

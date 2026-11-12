@@ -2,7 +2,8 @@
 shader dll), the dev game folders build\\game-<engine>, then HalfCraft.exe, a release's launcher (build\\launcher).
 
 it needs both patched sdk trees (make setup: the shaders always come from source-sdk-2013) and visual studio
-2022+ with its x64 and x86 compilers. the games have to be closed: their dlls get replaced. halfcraft's own
+2022+ with its x64 and x86 compilers. on linux it builds hl2dm only, in docker (tools/halfcraft/linux.py), and no
+HalfCraft.exe. the games have to be closed: their dlls get replaced. halfcraft's own
 code (source\\) builds without warnings: one there fails the build (the sdk's are valve's).
 """
 
@@ -13,8 +14,8 @@ import struct
 from dataclasses import dataclass
 from pathlib import Path
 
-from halfcraft import REPO, ToolError, commands, game_folder, sdk, shaders, version, visual_studio
-from halfcraft.engines import ENGINES, Engine, running
+from halfcraft import REPO, ToolError, commands, game_folder, linux, sdk, shaders, version, visual_studio
+from halfcraft.engines import ENGINES, LINUX, Engine, running
 
 LOGS = REPO / "build/logs"
 VPC_SECONDS = 600
@@ -197,6 +198,9 @@ def build(engines: list[Engine], *, projects: bool = True, launcher: bool = True
     # only the steam install of an engine loads these dlls: another project's hl2.exe doesn't hold the build up
     if game := running():
         raise ToolError(f"close the game first ({game[1].name} runs): its dlls get replaced")
+    if LINUX:
+        build_linux(engines, projects=projects)
+        return
     chain = toolchain(configuration)
     LOGS.mkdir(parents=True, exist_ok=True)
     # the shaders and the game folders' campaign files come from source-sdk-2013 whichever engine is built:
@@ -212,3 +216,13 @@ def build(engines: list[Engine], *, projects: bool = True, launcher: bool = True
         print(f"built {engine.name} with {chain.toolset}; game folder: {engine.game}")
     if launcher:
         print(f"launcher: {build_launcher(chain.vs)}")
+
+
+def build_linux(engines: list[Engine], *, projects: bool) -> None:
+    """build() on linux: the shaders and hl2dm's .so files in docker (tools/halfcraft/linux.py), then the game folder."""
+    sdk.TREES["hl2dm"].source()
+    linux.build_shaders(engines, shader_errors)  # first: the shader dll's c++ includes the .inc files the compile writes
+    for engine in engines:
+        linux.build_hl2dm(projects=projects, shader_dll=engine.shader_dll)
+        game_folder.copy_game_folder(engine, engine.game, symbols=True)
+        print(f"built {engine.name} for linux; game folder: {engine.game}")

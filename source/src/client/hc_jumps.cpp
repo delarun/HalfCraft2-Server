@@ -10,6 +10,7 @@
 #include "client/hc_client.h"
 #include "client/hc_jumps.h"
 #include "core/hc_log.h"
+#include "core/hc_module.h"
 #include "shared/hc_hooks.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -160,7 +161,7 @@ namespace halfcraft
 
 // server.dll: it landed one of minecraft's jumps next to where minecraft put its player, or refused it
 // (hc_bridge.h)
-extern "C" __declspec(dllexport) void HalfCraft_JumpLanded(const float feet[3], int refused)
+extern "C" HC_EXPORT void HalfCraft_JumpLanded(const float feet[3], int refused)
 {
 	halfcraft::client_jump_landed_elsewhere(Vector(feet[0], feet[1], feet[2]), refused != 0);
 }

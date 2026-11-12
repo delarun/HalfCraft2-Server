@@ -778,13 +778,13 @@ namespace halfcraft
 }
 
 // server.dll's way to the cells minecraft dug (hc_bridge.h)
-extern "C" __declspec(dllexport) int HalfCraft_DugSince(std::uint32_t since, halfcraft::DugSection* out, int max, std::uint32_t* now)
+extern "C" HC_EXPORT int HalfCraft_DugSince(std::uint32_t since, halfcraft::DugSection* out, int max, std::uint32_t* now)
 {
 	return halfcraft::dug_since(since, out, max, now);
 }
 
 // the shader dll's way to the dig mask (hc_dig_abi.h, DigMaskFn)
-extern "C" __declspec(dllexport) const halfcraft::DigMaskState* HalfCraft_DigMask()
+extern "C" HC_EXPORT const halfcraft::DigMaskState* HalfCraft_DigMask()
 {
 	return halfcraft::dig_mask_state();
 }

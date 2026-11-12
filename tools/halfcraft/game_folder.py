@@ -198,7 +198,8 @@ def write_game_folder(engine: Engine, destination: Path, folder: str, *, symbols
             raise ToolError(f"missing {dll} (build the {engine.name} engine's dlls first)")
         shutil.copy2(dll, game_bin)
         if symbols:
-            shutil.copy2(dll.with_suffix(".pdb"), game_bin)
+            for symbol in engine.symbols(dll):
+                shutil.copy2(symbol, game_bin)
 
     fxc = destination / "shaders/fxc"
     fxc.mkdir(parents=True, exist_ok=True)
@@ -211,7 +212,7 @@ def write_game_folder(engine: Engine, destination: Path, folder: str, *, symbols
 
 
 def copy_game_folder(engine: Engine, destination: Path, *, symbols: bool = False) -> None:
-    """lays out a game folder into destination. symbols: the .pdb next to each dll (dev folders:
+    """lays out a game folder into destination. symbols: the .pdb next to each dll on windows (dev folders:
     tools/debug/read_dump.py finds them there).
     """
     # laid out afresh in build\stage, then synced over: a file halfcraft shipped before and doesn't now

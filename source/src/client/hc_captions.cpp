@@ -13,6 +13,7 @@
 
 #include "client/hc_client.h"
 #include "core/hc_log.h"
+#include "core/hc_module.h"
 #include "shared/hc_hooks.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -72,7 +73,7 @@ namespace halfcraft
 }
 
 // server.dll: who says the caption it sends the client now (hc_bridge.h)
-extern "C" __declspec(dllexport) void HalfCraft_CaptionSpeaker(const char* token, const char* speaker)
+extern "C" HC_EXPORT void HalfCraft_CaptionSpeaker(const char* token, const char* speaker)
 {
 	std::lock_guard<std::mutex> lock(halfcraft::g_speakers_lock);
 	halfcraft::g_speakers[token] = speaker;

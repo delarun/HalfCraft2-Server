@@ -2,7 +2,8 @@
 
 // the minecraft a halfcraft release ships: a portable prism launcher with a ready "HalfCraft"
 // instance, in the release's minecraft folder beside the half-life game folders. HalfCraft.exe and
-// client.dll both start it from there. engine-agnostic (win32 only).
+// client.dll both start it from there. engine-agnostic. on linux prism is Prism/prismlauncher, and
+// a running minecraft is a lock on /dev/shm/<its link's mutex name> (hc_link_names.h's posix_name).
 //
 //   HalfCraft/
 //     HalfCraft.exe

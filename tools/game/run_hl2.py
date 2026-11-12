@@ -22,12 +22,14 @@ didn't start (HalfCraft.exe's, a player's).
 """
 
 import argparse
+import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools\, where the halfcraft package is
-from halfcraft import ToolError, engines
+from halfcraft import REPO, ToolError, engines
 from halfcraft.link import file_tag
 
 
@@ -78,7 +80,7 @@ def main() -> None:
     arguments = launch_arguments(
         engine, link=link, fullscreen=options.fullscreen, width=options.width, height=options.height, map=options.map, extra=options.extra
     )
-    if not (engine.game / engine.game_bin / "client.dll").is_file():
+    if not (engine.game / engine.game_bin / engine.dlls()[0].name).is_file():
         raise ToolError(f"no build in {engine.game} - run make build ENGINE={engine.name} first")
     where = "the default link" if link is None else f"link {link}"
     if found := engines.game_on_link(link):
@@ -87,6 +89,9 @@ def main() -> None:
         game = others[0][1]
         raise ToolError(f"{game.name} (pid {game.pid}) runs, and make run didn't start it: it's on the default link. quit it, or use --link")
     exe = engine.find_exe()
+    if engines.LINUX:
+        run_linux(engine, exe, arguments, link, wait=options.wait)
+        return
 
     # on its own: no handles of this console, and no ctrl+c from it
     flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
@@ -97,6 +102,42 @@ def main() -> None:
     print(f"started {exe} on {where}, pid {game.pid}; console log: {console_log(engine, link)}", flush=True)
     if options.wait:
         print(f"the game (pid {game.pid}) exited ({game.wait()})", flush=True)
+
+
+def run_linux(engine: engines.Engine, exe: Path, arguments: list[str], link: str | None, *, wait: bool) -> None:
+    """linux: the engine runs in the steam runtime's sniper container, through its hl2mp.sh. what starts is that
+    container's launcher; the game's own pid (the one in the pid file) is the hl2mp_linux64 that appears after it."""
+    script = exe.with_name("hl2mp.sh")
+    # the container shares the home folder and the game's own; the repo and the libraries may be elsewhere
+    shared = sorted({str(REPO), str(exe.resolve().parents[3])})  # the repo; <library>/steamapps/common/<game>/<exe>
+    env = {**os.environ, "SteamAppId": str(engine.app), "SteamGameId": str(engine.app), "PRESSURE_VESSEL_FILESYSTEMS_RW": ":".join(shared)}
+    before = {process.pid for process in engines.system.processes(exe.name)}
+    since = engines.system.now()
+    launcher = subprocess.Popen(
+        [engines.sniper_run(), "--", script, *arguments],
+        cwd=exe.parent,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    game = None
+    for _ in range(120):
+        fresh = [p for p in engines.system.processes(exe.name) if p.pid not in before and (p.started or since) >= since - 10_000_000]
+        if fresh:
+            game = fresh[0].pid
+            break
+        if launcher.poll() is not None:
+            raise ToolError(f"the sniper container exited ({launcher.returncode}) before {exe.name} started")
+        time.sleep(0.5)
+    if game is None:
+        raise ToolError(f"{exe.name} didn't start within a minute")
+    engines.pid_file(engine, link).write_text(f"{game}\n", encoding="ascii")
+    where = "the default link" if link is None else f"link {link}"
+    print(f"started {exe} on {where}, pid {game}; console log: {console_log(engine, link)}", flush=True)
+    if wait:
+        print(f"the game (pid {game}) exited ({launcher.wait()})", flush=True)
 
 
 if __name__ == "__main__":

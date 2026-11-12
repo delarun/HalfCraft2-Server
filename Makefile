@@ -1,6 +1,7 @@
 # halfcraft's tasks. each one wraps a script in tools\ (read it for the details); the real builds are
 # vpc + msbuild (half-life side) and gradle (minecraft side). needs gnu make 4+ on windows, e.g.
-# `winget install ezwinports.make`, python 3.13+ and windows powershell.
+# `winget install ezwinports.make`, python 3.13+ and windows powershell. on linux: gnu make, python 3.13+, docker
+# (the builds run in containers) and jdk 25; only ENGINE=hl2dm, half-life 2: deathmatch's linux engine.
 #
 #   make setup                     clone both sdk trees and apply halfcraft's patches
 #   make build [ENGINE=hl2]        dlls, shaders, dev game folders build\game-<engine>, HalfCraft.exe
@@ -23,9 +24,16 @@
 # second pair on one pc for co-op tests (its own link, copy, console-guest.log and minecraft). WAIT=1: make run
 # returns when the game exits (tools/game/hidden_desktop.py keeps its desktop while it waits).
 
-# windows powershell runs the recipes: python calls, with its quoting (make cmd C="'save a' 'load a'")
+# windows powershell runs the recipes on windows: python calls, with its quoting (make cmd C="'save a' 'load a'");
+# bash on linux, where half-life 2: deathmatch's linux engine is the one built (docker builds it: tools/halfcraft/linux.py)
+ifeq ($(OS),Windows_NT)
 SHELL := powershell.exe
 .SHELLFLAGS := -NoProfile -Command
+PYTHON := python
+else
+SHELL := /bin/bash
+PYTHON := python3
+endif
 .DEFAULT_GOAL := help
 .PHONY: help setup build mc mc-run mc-test run cmd test-start test-stop patches proto package format lint tidy core-test clean
 
@@ -38,60 +46,68 @@ LINK ?=
 WAIT ?=
 
 help:
+ifeq ($(OS),Windows_NT)
 	@Get-Content Makefile | Select-Object -First 25 | ForEach-Object { $$_ -replace '^# ?', '' }
+else
+	@head -n 25 Makefile | sed -E 's/^# ?//'
+endif
 
 setup:
-	python tools/build/setup_sdk.py --engine $(ENGINE)
+	$(PYTHON) tools/build/setup_sdk.py --engine $(ENGINE)
 
 build:
-	python tools/build/build_hl2.py --engine $(ENGINE) $(if $(NOPROJECTS),--no-projects)
+	$(PYTHON) tools/build/build_hl2.py --engine $(ENGINE) $(if $(NOPROJECTS),--no-projects)
 
 mc:
-	python tools/build/gradle.py build
+	$(PYTHON) tools/build/gradle.py build
 
 mc-run:
-	python tools/game/test_session.py dev-client
+	$(PYTHON) tools/game/test_session.py dev-client
 
 mc-test:
-	python tools/game/test_session.py minecraft $(if $(LINK),--link $(LINK))
+	$(PYTHON) tools/game/test_session.py minecraft $(if $(LINK),--link $(LINK))
 
 run:
-	python tools/game/run_hl2.py --engine $(RUN_ENGINE) $(if $(LINK),--link $(LINK)) $(if $(WAIT),--wait) $(if $(MAP),--map $(MAP)) $(if $(ARGS),-- $(ARGS))
+	$(PYTHON) tools/game/run_hl2.py --engine $(RUN_ENGINE) $(if $(LINK),--link $(LINK)) $(if $(WAIT),--wait) $(if $(MAP),--map $(MAP)) $(if $(ARGS),-- $(ARGS))
 
 cmd:
-	python tools/game/hl2_command.py $(if $(LINK),--link $(LINK)) -- $(C)
+	$(PYTHON) tools/game/hl2_command.py $(if $(LINK),--link $(LINK)) -- $(C)
 
 test-start:
-	python tools/game/test_session.py start --engine $(ENGINE)
+	$(PYTHON) tools/game/test_session.py start --engine $(ENGINE)
 
 test-stop:
-	python tools/game/test_session.py stop --engine $(ENGINE)
+	$(PYTHON) tools/game/test_session.py stop --engine $(ENGINE)
 
 patches:
-	python tools/build/update_patches.py --engine $(ENGINE)
+	$(PYTHON) tools/build/update_patches.py --engine $(ENGINE)
 
 proto:
-	python tools/build/protocol.py
+	$(PYTHON) tools/build/protocol.py
 
 package:
-	python tools/build/package.py $(if $(NOBUILD),--no-build)
+	$(PYTHON) tools/build/package.py $(if $(NOBUILD),--no-build)
 
 format:
-	python tools/lint/format.py
-	python tools/build/gradle.py spotlessApply
+	$(PYTHON) tools/lint/format.py
+	$(PYTHON) tools/build/gradle.py spotlessApply
 
 lint:
-	python tools/build/protocol.py --check
-	python tools/lint/format.py --check
-	python tools/build/gradle.py spotlessCheck
+	$(PYTHON) tools/build/protocol.py --check
+	$(PYTHON) tools/lint/format.py --check
+	$(PYTHON) tools/build/gradle.py spotlessCheck
 
 tidy:
-	python tools/lint/tidy.py
+	$(PYTHON) tools/lint/tidy.py
 
 core-test:
-	python tools/debug/core_tests.py
-	python tools/debug/tool_tests.py
+	$(PYTHON) tools/debug/core_tests.py
+	$(PYTHON) tools/debug/tool_tests.py
 
 # build output that's safe to throw away: not build\game-* (saves and settings live there)
 clean:
+ifeq ($(OS),Windows_NT)
 	'build\shaders', 'build\launcher', 'dist' | Where-Object { Test-Path $$_ } | Remove-Item -Recurse -Force
+else
+	rm -rf build/shaders build/launcher dist
+endif

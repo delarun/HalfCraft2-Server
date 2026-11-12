@@ -14,7 +14,11 @@ $Configuration
 	$Compiler
 	{
 		$AdditionalIncludeDirectories	"$BASE;$HALFCRAFTDIR\src;$HALFCRAFTPROTO"
-		$AdditionalOptions				"$BASE /std:c++17"
+		$AdditionalOptions				"$BASE /std:c++17"	[$WINDOWS]
+		// linux (ninja): after valve's -std=c++11, so it wins
+		$NinjaExtraCXXFlags				"$BASE -std=c++17"	[$POSIX]
+		// the steam runtime's glibc (2.31) keeps shm_open in librt (core\hc_link.cpp)
+		$NinjaLibEndShlib				"$BASE -lrt"		[$POSIX]
 	}
 }
 

@@ -23,6 +23,7 @@
 #include "client/hc_client.h"
 #include "client/hc_dig.h"
 #include "core/hc_log.h"
+#include "core/hc_module.h"
 #include "shared/hc_bridge.h"
 #include "shared/hc_hooks.h"
 
@@ -248,7 +249,7 @@ namespace halfcraft
 }
 
 // server.dll hands minecraft's screenshot key over (hc_bridge.h)
-extern "C" __declspec(dllexport) void HalfCraft_RequestScreenshot(std::uint32_t request)
+extern "C" HC_EXPORT void HalfCraft_RequestScreenshot(std::uint32_t request)
 {
 	halfcraft::g_screenshots.request(request);
 }

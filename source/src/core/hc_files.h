@@ -2,7 +2,8 @@
 
 // what windows says about files that the engine's file system doesn't: whether one could be deleted right now, and the
 // room left on a disk. paths as the engine gives them (RelativePathToFullPath): utf-8, or the ansi code page's, so each
-// is tried, through windows' wide functions, as whichever names something that's there. engine-agnostic.
+// is tried, through windows' wide functions, as whichever names something that's there. on linux paths are utf-8, and a
+// file open elsewhere can still be deleted. engine-agnostic.
 
 namespace halfcraft
 {

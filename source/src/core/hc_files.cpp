@@ -2,12 +2,19 @@
 
 #include <string>
 
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#else
+#include <sys/stat.h>
+#include <sys/statvfs.h>
+#include <unistd.h>
+#endif
 
 namespace halfcraft
 {
+#ifdef _WIN32
 	namespace
 	{
 		std::wstring widened(const char* text, UINT code_page)
@@ -62,4 +69,29 @@ namespace halfcraft
 		}
 		return static_cast<long long>(available.QuadPart);
 	}
+#else
+	// linux deletes a file whatever has it open (the open ones keep their copy): it can go whenever its folder
+	// lets this user write. paths are the engine's, utf-8, as linux takes them
+	Deletable file_deletable(const char* path)
+	{
+		struct stat st{};
+		if (!path || ::stat(path, &st) != 0) {
+			return Deletable::kUnknown;
+		}
+		std::string folder = path;
+		const auto  slash = folder.rfind('/');
+		folder = slash == std::string::npos ? "." : slash == 0 ? "/"
+															   : folder.substr(0, slash);
+		return ::access(folder.c_str(), W_OK) == 0 ? Deletable::kYes : Deletable::kNo;
+	}
+
+	long long free_bytes(const char* folder)
+	{
+		struct statvfs st{};
+		if (!folder || ::statvfs(folder, &st) != 0) {
+			return -1;
+		}
+		return static_cast<long long>(st.f_bavail) * static_cast<long long>(st.f_frsize);
+	}
+#endif
 }

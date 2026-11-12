@@ -28,6 +28,7 @@
 #include "client/hc_texture.h"
 #include "core/hc_link.h"
 #include "core/hc_log.h"
+#include "core/hc_module.h"
 #include "core/hc_units.h"
 #include "shared/hc_bridge.h"
 #include "shared/hc_hooks.h"
@@ -540,7 +541,7 @@ namespace halfcraft
 }
 
 // server.dll's way to minecraft's solid blocks (hc_bridge.h)
-extern "C" __declspec(dllexport) int HalfCraft_SolidsSince(std::uint32_t since, halfcraft::SolidSection* out, int max, std::uint32_t* now)
+extern "C" HC_EXPORT int HalfCraft_SolidsSince(std::uint32_t since, halfcraft::SolidSection* out, int max, std::uint32_t* now)
 {
 	return halfcraft::solids_since(since, out, max, now);
 }
