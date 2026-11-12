@@ -59,6 +59,7 @@ namespace halfcraft
 		bool g_vis_forced = false;
 		int  g_old_novis = 0;
 		int  g_old_portals = 0;
+		int  g_old_reflection = 1;  // r_waterdrawreflection
 
 		bool g_holes_near = false;  // dig_holes_near's, as dig_update last found it
 
@@ -267,21 +268,28 @@ namespace halfcraft
 			if (!want && !g_vis_forced) {
 				return;
 			}
-			static ConVarRef novis("r_novis"), portals("r_portalsopenall");
+			// the water's reflection of the world too goes while the whole map is drawn: drawing all of it a second time,
+			// the engine ran out of a buffer it fills and crashed (CReflectionView, DrawWorldLists)
+			static ConVarRef novis("r_novis"), portals("r_portalsopenall"), reflection("r_waterdrawreflection");
 			if (want) {
 				if (!g_vis_forced) {
 					g_old_novis = novis.IsValid() ? novis.GetInt() : 0;
 					g_old_portals = portals.IsValid() ? portals.GetInt() : 0;
+					g_old_reflection = reflection.IsValid() ? reflection.GetInt() : 1;
 					g_vis_forced = true;
-					log_info("dig: this map has holes: r_novis 1, r_portalsopenall 1 (they were %d, %d)", g_old_novis, g_old_portals);
+					log_info("dig: this map has holes: r_novis 1, r_portalsopenall 1, r_waterdrawreflection 0 (they were %d, %d, %d)", g_old_novis,
+						g_old_portals, g_old_reflection);
 				}
 				set_cvar(novis, 1);
 				set_cvar(portals, 1);
+				set_cvar(reflection, 0);
 			} else {
 				set_cvar(novis, g_old_novis);
 				set_cvar(portals, g_old_portals);
+				set_cvar(reflection, g_old_reflection);
 				g_vis_forced = false;
-				log_info("dig: no holes here: r_novis %d, r_portalsopenall %d again", g_old_novis, g_old_portals);
+				log_info("dig: no holes here: r_novis %d, r_portalsopenall %d, r_waterdrawreflection %d again", g_old_novis, g_old_portals,
+					g_old_reflection);
 			}
 		}
 
