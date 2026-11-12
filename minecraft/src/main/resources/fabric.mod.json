@@ -7,7 +7,7 @@
   "authors": ["whisky"],
   "contributors": ["chasmlol (SkyCraft, which HalfCraft is based on)"],
   "license": "MIT",
-  "environment": "client",
+  "environment": "*",
   "entrypoints": {
     "main": ["dev.halfcraft.HalfCraft"],
     "client": ["dev.halfcraft.client.HalfCraftClient"]

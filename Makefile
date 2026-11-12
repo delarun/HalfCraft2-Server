@@ -7,6 +7,7 @@
 #   make build [ENGINE=hl2]        dlls, shaders, dev game folders build\game-<engine>, HalfCraft.exe
 #   make mc                        the minecraft mod's jar
 #   make mc-run                    the minecraft dev client
+#   make mc-server                 the halfcraft server's minecraft: a dedicated server in minecraft/run/server
 #   make mc-test [LINK=guest]      the minecraft test client (after test-start): its own run folder and world
 #   make run [ENGINE=hl2] [MAP=d1_canals_01] [ARGS="+sv_cheats 1"] [LINK=guest] [WAIT=1]
 #   make cmd [LINK=guest] C="'save a' 'load a'"   console commands into the running game (that link's copy)
@@ -38,7 +39,7 @@ SHELL := /bin/bash
 PYTHON := python3
 endif
 .DEFAULT_GOAL := help
-.PHONY: help setup build mc mc-run mc-test run cmd server server-layout server-cmd test-start test-stop patches proto package format lint tidy core-test clean
+.PHONY: help setup build mc mc-run mc-server mc-test run cmd server server-layout server-cmd test-start test-stop patches proto package format lint tidy core-test clean
 
 ENGINE ?= all
 RUN_ENGINE := $(if $(filter all,$(ENGINE)),hl2dm,$(ENGINE))
@@ -50,9 +51,9 @@ WAIT ?=
 
 help:
 ifeq ($(OS),Windows_NT)
-	@Get-Content Makefile | Select-Object -First 28 | ForEach-Object { $$_ -replace '^# ?', '' }
+	@Get-Content Makefile | Select-Object -First 29 | ForEach-Object { $$_ -replace '^# ?', '' }
 else
-	@head -n 28 Makefile | sed -E 's/^# ?//'
+	@head -n 29 Makefile | sed -E 's/^# ?//'
 endif
 
 setup:
@@ -66,6 +67,9 @@ mc:
 
 mc-run:
 	$(PYTHON) tools/game/test_session.py dev-client
+
+mc-server:
+	$(PYTHON) tools/build/gradle.py runServer
 
 mc-test:
 	$(PYTHON) tools/game/test_session.py minecraft $(if $(LINK),--link $(LINK))

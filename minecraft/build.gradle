@@ -37,6 +37,13 @@ loom {
 			vmArg "-Dhalfcraft.world=HalfCraftTestGuest"
 			environmentVariable "HALFCRAFT_LINK", "guest"
 		}
+		// make mc-server (runServer): the halfcraft server's minecraft (docs/server/PLAN.md), a dedicated server in a run
+		// folder of its own, linked to the source dedicated servers' server.so on HALFCRAFT_SERVER_LINKS (srv by default)
+		server {
+			runDir "run/server"
+			vmArgs "--enable-native-access=ALL-UNNAMED"
+			environmentVariable "HALFCRAFT_SERVER_LINKS", (System.getenv("HALFCRAFT_SERVER_LINKS") ?: "srv")
+		}
 	}
 
 	mods {
