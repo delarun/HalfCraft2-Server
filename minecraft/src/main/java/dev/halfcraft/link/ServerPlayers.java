@@ -104,6 +104,8 @@ public final class ServerPlayers {
 				case Proto.IN_BULLET_HIT -> dev.halfcraft.world.HostBlockDamage.bulletHit(server, new net.minecraft.core.BlockPos(a, b, c));
 				case Proto.IN_TAKE_BLOCK -> dev.halfcraft.world.HeldBlocks.take(server, code, new net.minecraft.core.BlockPos(a, b, c));
 				case Proto.IN_HELD_BLOCK_LANDED -> dev.halfcraft.world.HeldBlocks.landed(server, code, new net.minecraft.core.BlockPos(a, b, c));
+				case Proto.IN_PROP_DROPPED -> dev.halfcraft.props.HostProps.droppedOnServer(server, code, dev.halfcraft.combat.HostHurts.coordinate(a),
+					dev.halfcraft.combat.HostHurts.coordinate(b), dev.halfcraft.combat.HostHurts.coordinate(c));
 				case Proto.IN_HELD_BLOCK_LOST -> dev.halfcraft.world.HeldBlocks.lost(server, code, new net.minecraft.core.BlockPos(a, b, c));
 				default -> {
 				}

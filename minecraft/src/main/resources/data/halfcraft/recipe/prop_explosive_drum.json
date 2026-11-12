@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "ingredients": [
+    "halfcraft:prop_oil_drum",
+    "minecraft:gunpowder",
+    "minecraft:red_dye"
+  ],
+  "result": {
+    "id": "halfcraft:prop_explosive_drum",
+    "count": 1
+  }
+}

@@ -51,5 +51,14 @@
   "death.attack.halfcraft.host_bullet": "%1$s was shot",
   "death.attack.halfcraft.host_bullet.player": "%1$s was shot while fighting %2$s",
   "death.attack.halfcraft.host_crush": "%1$s was crushed",
-  "death.attack.halfcraft.host_crush.player": "%1$s was crushed while fighting %2$s"
+  "death.attack.halfcraft.host_crush.player": "%1$s was crushed while fighting %2$s",
+  "item.halfcraft.prop_wood_crate": "Wooden Crate",
+  "item.halfcraft.prop_oil_drum": "Oil Drum",
+  "item.halfcraft.prop_explosive_drum": "Explosive Drum",
+  "item.halfcraft.prop_cinder_block": "Cinder Block",
+  "item.halfcraft.prop_chair": "Wooden Chair",
+  "item.halfcraft.prop_table": "Wooden Table",
+  "item.halfcraft.prop_tire": "Tire",
+  "item.halfcraft.prop_radiator": "Radiator",
+  "item.halfcraft.prop_barrier": "Concrete Barrier"
 }

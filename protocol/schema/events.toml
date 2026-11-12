@@ -37,6 +37,25 @@ weapon = HeldMaterial with kHeldTaken""" }
 kEvCollisionLost = { value = 18, doc = """
 Minecraft dropped collision messages it couldn't read (the ring lost its place): the
 host streams its collision afresh""" }
+kEvPlaceProp = { value = 19, doc = """
+a player used a Half-Life prop's item: weapon = its PropKind; the host puts the prop where the
+player looks (the halfcraft server's: playerId's player)""" }
+
+[enums.PropKind]
+type = "u32"
+doc = "The Half-Life props Minecraft crafts as items, and their items come back from (core/hc_props.h has their models)."
+
+[enums.PropKind.items]
+kPropNone = { value = 0 }
+kPropWoodCrate = { value = 1, doc = "a wooden crate" }
+kPropOilDrum = { value = 2, doc = "an oil drum" }
+kPropExplosiveDrum = { value = 3, doc = "a red explosive drum" }
+kPropCinderBlock = { value = 4, doc = "a cinder block" }
+kPropChair = { value = 5, doc = "a wooden chair" }
+kPropTable = { value = 6, doc = "a wooden table" }
+kPropTire = { value = 7, doc = "a car tire" }
+kPropRadiator = { value = 8, doc = "a radiator" }
+kPropBarrier = { value = 9, doc = "a concrete road barrier" }
 
 [enums.HeldBlockNews]
 type = "u32"

@@ -81,8 +81,11 @@ kInHurtFrom = { value = 24, doc = """
 where the next kInHurt came from, for Minecraft's shield: a/b/c = Minecraft x/y/z (float bits)
 of the blast's centre or of what dealt it; only that one kInHurt uses it""" }
 kInFor = { value = 25, doc = """
-on a server link: the next kInHurt, kInHurtFrom or kInHeal is for the player whose Source userid is a (the
+on a server link: the next kInHurt, kInHurtFrom, kInHeal, kInHurtMob or kInPropDropped is for the player whose Source userid is a (the
 HalfCraft server's Minecraft applies it to them); single player never sends it""" }
+kInPropDropped = { value = 26, doc = """
+a Half-Life prop Minecraft makes (PropKind) was broken down by Minecraft's hits: code = its PropKind,
+a/b/c = where it was (MC coords, float bits); its item drops there, for kInFor's player""" }
 
 [enums.MapEntry]
 type = "u16"

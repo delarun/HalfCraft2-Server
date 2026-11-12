@@ -23,6 +23,7 @@ public final class HalfCraft implements ModInitializer {
 	public void onInitialize() {
 		HostCombat.init();
 		dev.halfcraft.weapon.HostWeapons.init();
+		dev.halfcraft.props.HostProps.init();
 		// Minecraft's mobs and Half-Life's characters see and fight each other
 		dev.halfcraft.mobs.HostMobs.init();
 		// pets come along when Half-Life moves the player to another map

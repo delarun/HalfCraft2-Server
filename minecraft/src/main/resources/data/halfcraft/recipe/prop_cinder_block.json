@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "CGC"
+  ],
+  "key": {
+    "C": "minecraft:cobblestone",
+    "G": "minecraft:gravel"
+  },
+  "result": {
+    "id": "halfcraft:prop_cinder_block",
+    "count": 2
+  }
+}

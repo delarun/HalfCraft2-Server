@@ -10,7 +10,7 @@ public final class Proto {
 
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	public static final int LAYOUT = 0xE009C1A1;
+	public static final int LAYOUT = 0x1D6AD886;
 
 	// ---- where each part of the mapping is
 	public static final long OFF_HEADER = 0x00;
@@ -302,9 +302,12 @@ public final class Proto {
 	// where the next IN_HURT came from, for Minecraft's shield: a/b/c = Minecraft x/y/z (float bits)
 	// of the blast's centre or of what dealt it; only that one IN_HURT uses it
 	public static final int IN_HURT_FROM = 24;
-	// on a server link: the next IN_HURT, IN_HURT_FROM or IN_HEAL is for the player whose Source userid is a (the
+	// on a server link: the next IN_HURT, IN_HURT_FROM, IN_HEAL, IN_HURT_MOB or IN_PROP_DROPPED is for the player whose Source userid is a (the
 	// HalfCraft server's Minecraft applies it to them); single player never sends it
 	public static final int IN_FOR = 25;
+	// a Half-Life prop Minecraft makes (PropKind) was broken down by Minecraft's hits: code = its PropKind,
+	// a/b/c = where it was (MC coords, float bits); its item drops there, for IN_FOR's player
+	public static final int IN_PROP_DROPPED = 26;
 	// 26-27: kept for the world group (C)
 
 	// MapEntry
@@ -418,7 +421,23 @@ public final class Proto {
 	// Minecraft dropped collision messages it couldn't read (the ring lost its place): the
 	// host streams its collision afresh
 	public static final int EV_COLLISION_LOST = 18;
+	// a player used a Half-Life prop's item: weapon = its PropKind; the host puts the prop where the
+	// player looks (the halfcraft server's: playerId's player)
+	public static final int EV_PLACE_PROP = 19;
 	// 6-7: kept for #12 (the host's weapons), 8-9 for #13 (Minecraft's mobs), 12-13 for the puppet group (A)
+
+	// PropKind
+	// The Half-Life props Minecraft crafts as items, and their items come back from (core/hc_props.h has their models).
+	public static final int PROP_NONE = 0;
+	public static final int PROP_WOOD_CRATE = 1; // a wooden crate
+	public static final int PROP_OIL_DRUM = 2; // an oil drum
+	public static final int PROP_EXPLOSIVE_DRUM = 3; // a red explosive drum
+	public static final int PROP_CINDER_BLOCK = 4; // a cinder block
+	public static final int PROP_CHAIR = 5; // a wooden chair
+	public static final int PROP_TABLE = 6; // a wooden table
+	public static final int PROP_TIRE = 7; // a car tire
+	public static final int PROP_RADIATOR = 8; // a radiator
+	public static final int PROP_BARRIER = 9; // a concrete road barrier
 
 	// HeldBlockNews
 	// What Minecraft did with a held slot (EV_HELD_BLOCK).

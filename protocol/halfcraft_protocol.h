@@ -9,7 +9,7 @@ namespace halfcraft::proto
 {
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	inline constexpr std::uint32_t kLayout = 0xE009C1A1;
+	inline constexpr std::uint32_t kLayout = 0x1D6AD886;
 
 	// ---- where each part of the mapping is ----------------------------------------------------------
 	inline constexpr std::uint64_t kOffHeader = 0x00;
@@ -315,9 +315,12 @@ namespace halfcraft::proto
 		// where the next kInHurt came from, for Minecraft's shield: a/b/c = Minecraft x/y/z (float bits)
 		// of the blast's centre or of what dealt it; only that one kInHurt uses it
 		kInHurtFrom = 24,
-		// on a server link: the next kInHurt, kInHurtFrom or kInHeal is for the player whose Source userid is a (the
+		// on a server link: the next kInHurt, kInHurtFrom, kInHeal, kInHurtMob or kInPropDropped is for the player whose Source userid is a (the
 		// HalfCraft server's Minecraft applies it to them); single player never sends it
 		kInFor = 25,
+		// a Half-Life prop Minecraft makes (PropKind) was broken down by Minecraft's hits: code = its PropKind,
+		// a/b/c = where it was (MC coords, float bits); its item drops there, for kInFor's player
+		kInPropDropped = 26,
 		// 26-27: kept for the world group (C)
 	};
 
@@ -450,7 +453,25 @@ namespace halfcraft::proto
 		// Minecraft dropped collision messages it couldn't read (the ring lost its place): the
 		// host streams its collision afresh
 		kEvCollisionLost = 18,
+		// a player used a Half-Life prop's item: weapon = its PropKind; the host puts the prop where the
+		// player looks (the halfcraft server's: playerId's player)
+		kEvPlaceProp = 19,
 		// 6-7: kept for #12 (the host's weapons), 8-9 for #13 (Minecraft's mobs), 12-13 for the puppet group (A)
+	};
+
+	// The Half-Life props Minecraft crafts as items, and their items come back from (core/hc_props.h has their models).
+	enum PropKind : std::uint32_t
+	{
+		kPropNone = 0,
+		kPropWoodCrate = 1,      // a wooden crate
+		kPropOilDrum = 2,        // an oil drum
+		kPropExplosiveDrum = 3,  // a red explosive drum
+		kPropCinderBlock = 4,    // a cinder block
+		kPropChair = 5,          // a wooden chair
+		kPropTable = 6,          // a wooden table
+		kPropTire = 7,           // a car tire
+		kPropRadiator = 8,       // a radiator
+		kPropBarrier = 9,        // a concrete road barrier
 	};
 
 	// What Minecraft did with a held slot (kEvHeldBlock).

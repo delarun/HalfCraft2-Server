@@ -20,6 +20,7 @@
 #include "server/hc_combat.h"
 #include "server/hc_mobs.h"
 #include "server/hc_players.h"
+#include "server/hc_props.h"
 #include "server/hc_vitals.h"
 #include "shared/hc_hooks.h"
 #include "shared/hc_bridge.h"
@@ -89,6 +90,10 @@ namespace halfcraft
 		/// breakable things minecraft weapons should be able to smash
 		bool is_breakable(CBaseEntity* entity)
 		{
+			// a prop minecraft crafts breaks down into its item under minecraft's hits, whatever its health
+			if (is_minecraft_prop(entity)) {
+				return !entity->IsEffectActive(EF_NODRAW) && entity->IsSolid();
+			}
 			if (!entity || entity->IsPlayer() || entity->MyNPCPointer() || entity->m_takedamage != DAMAGE_YES || entity->GetHealth() <= 0) {
 				return false;
 			}
@@ -241,6 +246,9 @@ namespace halfcraft
 			case proto::kEvCollisionLost:
 				collision_lost_ = true;
 				break;
+			case proto::kEvPlaceProp:
+				place_prop(player, event.weapon);
+				break;
 			default:
 				break;
 			}
@@ -344,6 +352,13 @@ namespace halfcraft
 			case proto::kEvHeldBlock:
 				held_block_news_.push_back(event);  // the gravity gun's blocks, whoever holds them
 				break;
+			case proto::kEvPlaceProp:
+				for (CBasePlayer* each : players) {
+					if (each->GetUserID() == static_cast<int>(event.playerId)) {
+						place_prop(each, event.weapon);
+					}
+				}
+				break;
 			default:
 				break;
 			}
@@ -436,6 +451,11 @@ namespace halfcraft
 	{
 		const auto   found = g_actors.find(event.actorId);
 		CBaseEntity* target = found != g_actors.end() ? found->second.Get() : nullptr;
+		// the player's hits on a prop minecraft crafts break it down into its item (hc_props), not into pieces
+		if (target && event.attackerId == 0 && is_minecraft_prop(target)) {
+			harvest_hit(player, target, event.a, g_slot);
+			return;
+		}
 		if (!target || target->m_takedamage == DAMAGE_NO) {
 			return;
 		}

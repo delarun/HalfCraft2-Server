@@ -33,6 +33,7 @@
 #include "core/hc_dig_void.h"
 #include "core/hc_dug_cells.h"
 #include "core/hc_link_names.h"
+#include "core/hc_props.h"
 #include "core/hc_sandbox.h"
 
 using namespace halfcraft;
@@ -1556,6 +1557,20 @@ namespace
 		CHECK(!ipv4_of("1234.1.1.1") && !ipv4_of("[::1]:27015"));
 	}
 
+	void test_props()
+	{
+		using namespace halfcraft::props;
+		const Kind* crate = by_model("models\\Props_Junk\\wood_crate001a.mdl");
+		CHECK(crate != nullptr && crate->kind == 1);
+		CHECK(by_model("models/props_junk/wood_crate001a_damaged.mdl") == nullptr);
+		CHECK(by_kind(9) != nullptr && by_kind(9)->model == "models/props_c17/concrete_barrier001a.mdl");
+		CHECK(by_kind(0) == nullptr && by_kind(10) == nullptr);
+		CHECK(!harvested(*crate, 5.9f) && harvested(*crate, 6.0f));
+		for (std::size_t i = 0; i < KINDS.size(); ++i) {
+			CHECK(KINDS[i].kind == i + 1 && by_model(KINDS[i].model) == &KINDS[i]);
+		}
+	}
+
 	void test_sandbox()
 	{
 		using namespace halfcraft::sandbox;
@@ -1753,6 +1768,7 @@ int run_tests()
 	test_campaign_model_restore();
 	test_valid_link_id();
 	test_link_names();
+	test_props();
 	test_sandbox();
 	test_ipv4_of();
 	test_choose_link_id();
