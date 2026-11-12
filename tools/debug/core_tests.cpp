@@ -1580,6 +1580,14 @@ namespace
 		CHECK(kept.size() == 5 && kept[0].size() == 3 && kept[0][2].first == "PlayerOn");
 		// what serialize writes parses back to the same entities
 		CHECK(parse(serialize(kept)) == kept);
+		// the map's soldiers and antlions come back, not their bosses, friends or an npc_maker's templates
+		CHECK(respawnable("npc_combine_s", 0) && respawnable("NPC_Antlion", 4) && respawnable("npc_rollermine", 0));
+		CHECK(!respawnable("npc_combine_s", 2048 | 4) && !respawnable("npc_combinegunship", 0) && !respawnable("npc_citizen", 0));
+		CHECK(!respawnable("npc_vortigaunt", 0) && !respawnable("npc_bullseye", 0) && !respawnable("npc_template_maker", 0));
+		CHECK(spawnflags_of({ { "spawnflags", "2052" } }) == 2052 && spawnflags_of({}) == 0 && spawnflags_of({ { "spawnflags", "x" } }) == 0);
+		// a dead one comes back once the delay is over and no player is near its spot
+		CHECK(!respawn_due(100.0, 200.0, 180.0, -1.0, 1500.0) && respawn_due(100.0, 280.0, 180.0, -1.0, 1500.0));
+		CHECK(!respawn_due(100.0, 280.0, 180.0, 400.0, 1500.0) && respawn_due(100.0, 280.0, 180.0, 1500.0, 1500.0));
 		// a lump cut short ends the list there
 		CHECK(parse("{\n\"a\" \"b\"\n}\n{\n\"c\" \"d").size() == 1);
 	}

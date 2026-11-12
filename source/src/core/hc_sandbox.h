@@ -8,7 +8,7 @@
 //   - the story's own classes (STORY_CLASSES, ai_goal_*), the g-man, level changes (portals replace them);
 //   - a vehicle's lock: its VehicleLocked key, and every output that locks a vehicle or turns it off.
 //
-// enemies, triggers and relays stay. pure: no sdk, no windows, tested by tools/debug/core_tests.cpp.
+// enemies, triggers and relays stay, and the map's enemies come back after they die (respawnable, respawn_due). pure: no sdk, no windows, tested by tools/debug/core_tests.cpp.
 
 #include <algorithm>
 #include <cctype>
@@ -199,5 +199,46 @@ namespace halfcraft::sandbox
 			kept.push_back(std::move(entity));
 		}
 		return kept;
+	}
+
+	// ---- enemies coming back ----------------------------------------------------------------------------------------
+	// the map's own enemies (not its bosses, its friends or an npc_maker's templates) spawn again where the map put
+	// them, a while after they died and only while no player is near: the story's waves are gone with the story.
+
+	/// npc spawnflags: an npc_maker's template, which never spawns by itself (ai_basenpc.h's SF_NPC_TEMPLATE).
+	inline constexpr int SPAWNFLAG_TEMPLATE = 1 << 11;
+
+	/// whether a map's npc comes back after it dies: an enemy of the campaigns' rank and file, not a template.
+	inline bool respawnable(std::string_view classname, int spawnflags)
+	{
+		static const std::vector<std::string_view> enemies{
+			"npc_combine_s", "npc_metropolice", "npc_antlion", "npc_antlion_worker", "npc_zombie", "npc_zombie_torso", "npc_zombine",
+			"npc_fastzombie", "npc_fastzombie_torso", "npc_poisonzombie", "npc_headcrab", "npc_headcrab_fast", "npc_headcrab_black",
+			"npc_headcrab_poison", "npc_rollermine", "npc_manhack", "npc_barnacle", "npc_cscanner",
+		};
+		const std::string name = lower(classname);
+		return (spawnflags & SPAWNFLAG_TEMPLATE) == 0 && std::find(enemies.begin(), enemies.end(), name) != enemies.end();
+	}
+
+	/// an npc's spawnflags key as a number (0 without one or for what isn't one).
+	inline int spawnflags_of(const Entity& entity)
+	{
+		const std::string_view text = value_of(entity, "spawnflags");
+		int                    flags = 0;
+		for (const char c : text) {
+			if (c < '0' || c > '9') {
+				return 0;
+			}
+			flags = flags * 10 + (c - '0');
+		}
+		return flags;
+	}
+
+	/// whether a dead enemy spawns again now.
+	/// @param died_at - when it was found dead (seconds, the server's clock)
+	/// @param nearest_player - how far the nearest living player is from its spawn spot; negative for no player
+	inline bool respawn_due(double died_at, double now, double delay, double nearest_player, double keep_away)
+	{
+		return now - died_at >= delay && (nearest_player < 0.0 || nearest_player >= keep_away);
 	}
 }
