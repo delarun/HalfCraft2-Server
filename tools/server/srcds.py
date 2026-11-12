@@ -106,12 +106,12 @@ def layout(srcds: Path, hl2: Path) -> None:
     print(f"server game folder: {GAME} (as {srcds / GAME_LINK}); half-life 2's content: {hl2} (as {srcds / CONTENT_LINK})")
 
 
-def run(srcds: Path, *, map: str, port: int, players: int, link_id: str, log: Path | None, extra: list[str]) -> int:  # noqa: A002 the map it runs
+def run(srcds: Path, *, map: str, port: int, players: int, link_id: str, mc_port: int, log: Path | None, extra: list[str]) -> int:  # noqa: A002 the map it runs
     command = [
         "./srcds_linux64", "-game", GAME_LINK, "-console", "-nobreakpad", "-hc_link", link_id,
         "+ip", "0.0.0.0",  # noqa: S104 a game server: players connect from the lan
         "-port", str(port), "+sv_lan", "1", "+maxplayers", str(players),
-        "+rcon_password", rcon.password(), *extra, "+map", map,
+        "+rcon_password", rcon.password(), "+hc_server_mc_port", str(mc_port), *extra, "+map", map,
     ]  # fmt: skip
     env = {**os.environ, "LD_LIBRARY_PATH": f"{srcds / 'bin/linux64'}:{GAME / 'srvlib'}"}
     if log is None:
@@ -132,6 +132,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=27015)
     parser.add_argument("--players", type=int, default=8)
     parser.add_argument("--link", default="srv", help="the server's own link id")
+    parser.add_argument("--mc-port", type=int, default=25565, help="the halfcraft server's minecraft port, which each player's minecraft joins")
     parser.add_argument("--log", type=Path, help="also write the console to this file")
     parser.add_argument("extra", nargs="*", help="more server arguments, after --")
     options = parser.parse_args()
@@ -140,7 +141,18 @@ def main() -> None:
     srcds = server_folder(options.srcds)
     layout(srcds, hl2_folder(options.hl2))
     if options.what == "run":
-        raise SystemExit(run(srcds, map=options.map, port=options.port, players=options.players, link_id=options.link, log=options.log, extra=options.extra))
+        raise SystemExit(
+            run(
+                srcds,
+                map=options.map,
+                port=options.port,
+                players=options.players,
+                link_id=options.link,
+                mc_port=options.mc_port,
+                log=options.log,
+                extra=options.extra,
+            )
+        )
 
 
 if __name__ == "__main__":

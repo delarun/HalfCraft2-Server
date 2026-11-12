@@ -5,6 +5,7 @@
 #include "c_baseplayer.h"
 #include "iclientvehicle.h"
 #include "iinput.h"
+#include "inetchannelinfo.h"
 #include "ienginevgui.h"
 #include "in_buttons.h"
 #include "usercmd.h"
@@ -25,6 +26,7 @@
 #include "shared/hc_floors.h"
 #include "client/hc_things.h"
 #include "client/hc_weapons.h"
+#include "core/hc_coop.h"
 #include "core/hc_log.h"
 #include "core/hc_module.h"
 #include "core/hc_text_input.h"
@@ -456,6 +458,17 @@ namespace halfcraft
 			host.overlayDivisor = static_cast<std::uint32_t>(s.overlay_divisor);
 			host.gameHour = IDLE_GAME_HOUR;
 			host.speedFactor = player ? player->GetLaggedMovementValue() : 1.0f;  // player_speedmod
+			// on a halfcraft server (another machine's source server, for more than one, with a minecraft port) this
+			// minecraft leaves its own world and joins the server's, on the source server's address
+			if (INetChannelInfo* channel = engine->GetNetChannelInfo(); channel && !channel->IsLoopback() && gpGlobals->maxClients > 1) {
+				const auto ip = ipv4_of(channel->GetAddress());
+				const int  port = server_minecraft_port();
+				if (ip && port > 0) {
+					host.coopMode = proto::kCoopGuest;
+					host.coopIp = *ip;
+					host.coopPort = static_cast<std::uint32_t>(port);
+				}
+			}
 			s.link.write_host_state(host);
 		}
 	}

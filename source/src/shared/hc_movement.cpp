@@ -21,6 +21,16 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
+// the halfcraft server's minecraft port (docs/server/PLAN.md): a dedicated server's admin sets it, the engine
+// replicates it to every player, and each player's minecraft joins that port on the server's address. 0: none
+static ConVar hc_server_mc_port("hc_server_mc_port", "0", FCVAR_REPLICATED,
+	"the halfcraft server's minecraft port on this server's address, which each player's minecraft joins (0: none)", true, 0.0f, true, 65535.0f);
+
+int halfcraft::server_minecraft_port()
+{
+	return hc_server_mc_port.GetInt();
+}
+
 // units; minecraft's fastest fall covers about 50 per command
 static const float HALFCRAFT_MAX_STEP = 160.0f;
 

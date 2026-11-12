@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -109,5 +110,36 @@ namespace halfcraft
 	inline bool hosted_level_has_room(int max_clients)
 	{
 		return max_clients >= HOST_SLOTS;
+	}
+
+	/// an ipv4 address with its port, as the engine names a net channel's server ("192.168.10.254:27015"), as
+	/// HostState's coopIp holds it: a << 24 | b << 16 | c << 8 | d. nullopt for anything else (a name, ipv6, loopback's
+	/// "loopback").
+	inline std::optional<std::uint32_t> ipv4_of(std::string_view address)
+	{
+		std::uint32_t ip = 0;
+		std::size_t   at = 0;
+		for (int part = 0; part < 4; ++part) {
+			if (part > 0) {
+				if (at >= address.size() || address[at] != '.') {
+					return std::nullopt;
+				}
+				++at;
+			}
+			std::uint32_t value = 0;
+			std::size_t   digits = 0;
+			while (at < address.size() && address[at] >= '0' && address[at] <= '9' && digits < 3) {
+				value = value * 10 + static_cast<std::uint32_t>(address[at++] - '0');
+				++digits;
+			}
+			if (digits == 0 || value > 255) {
+				return std::nullopt;
+			}
+			ip = ip << 8 | value;
+		}
+		if (at != address.size() && address[at] != ':') {
+			return std::nullopt;
+		}
+		return ip;
 	}
 }

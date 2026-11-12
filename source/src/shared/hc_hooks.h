@@ -19,6 +19,10 @@ struct client_textmessage_t;
 
 namespace halfcraft
 {
+	/// hc_server_mc_port, the server's own on the server and as the server replicated it on a client (hc_movement.cpp):
+	/// the halfcraft server's minecraft port, 0 for none.
+	int server_minecraft_port();
+
 	/// CUserCmd::hc_flags
 	enum UserCmdFlag : int
 	{

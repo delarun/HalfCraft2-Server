@@ -1547,6 +1547,15 @@ namespace
 		CHECK(!valid_link_id(std::string_view("a\0b", 3)));
 	}
 
+	void test_ipv4_of()
+	{
+		using halfcraft::ipv4_of;
+		CHECK(ipv4_of("192.168.10.254:27015") == std::optional<std::uint32_t>(0xC0A80AFEu));
+		CHECK(ipv4_of("10.0.0.1") == std::optional<std::uint32_t>(0x0A000001u));
+		CHECK(!ipv4_of("loopback") && !ipv4_of("") && !ipv4_of("1.2.3") && !ipv4_of("1.2.3.256:1") && !ipv4_of("1.2.3.4x"));
+		CHECK(!ipv4_of("1234.1.1.1") && !ipv4_of("[::1]:27015"));
+	}
+
 	void test_sandbox()
 	{
 		using namespace halfcraft::sandbox;
@@ -1745,6 +1754,7 @@ int run_tests()
 	test_valid_link_id();
 	test_link_names();
 	test_sandbox();
+	test_ipv4_of();
 	test_choose_link_id();
 	test_is_map_name_takes_map_names_only();
 	test_host_commands_set_up_a_two_slot_lan_server();
