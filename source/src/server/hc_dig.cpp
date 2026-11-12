@@ -14,6 +14,7 @@
 #include "core/hc_collision.h"
 #include "core/hc_link.h"
 #include "core/hc_log.h"
+#include "server/hc_players.h"
 #include "core/hc_module.h"
 #include "core/hc_units.h"
 #include "server/hc_dig.h"
@@ -147,7 +148,7 @@ namespace halfcraft
 		if (!hc_debug_dig.GetBool() || gpGlobals->curtime < next_outline_) {
 			return;
 		}
-		CBasePlayer* player = UTIL_GetLocalPlayer();
+		CBasePlayer* player = singleplayer_player();
 		if (!player) {
 			return;
 		}

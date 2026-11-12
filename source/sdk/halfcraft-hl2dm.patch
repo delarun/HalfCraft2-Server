@@ -680,6 +680,36 @@ index 0fc2e64b..78139395 100644
  
  $Configuration
  {
+diff --git a/src/game/server/util.cpp b/src/game/server/util.cpp
+index 71e0f734..092f7684 100644
+--- a/src/game/server/util.cpp
++++ b/src/game/server/util.cpp
+@@ -580,6 +580,25 @@ CBasePlayer	*UTIL_PlayerByIndex( int playerIndex )
+ // 
+ CBasePlayer *UTIL_GetLocalPlayer( void )
+ {
++	// halfcraft: a dedicated server has no local player, and valve's npc, ally and ragdoll code takes one without
++	// looking (srcds crashed once ragdolls piled up): the first living player stands in for it, else the first one
++	if ( gpGlobals->maxClients > 1 && engine->IsDedicatedServer() )
++	{
++		CBasePlayer *pFirst = NULL;
++		for ( int i = 1; i <= gpGlobals->maxClients; ++i )
++		{
++			CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
++			if ( pPlayer && pPlayer->IsConnected() )
++			{
++				if ( pPlayer->IsAlive() )
++					return pPlayer;
++				if ( !pFirst )
++					pFirst = pPlayer;
++			}
++		}
++		return pFirst;
++	}
++
+ 	if ( gpGlobals->maxClients > 1 )
+ 	{
+ 		if ( developer.GetBool() )
 diff --git a/src/game/shared/SoundEmitterSystem.cpp b/src/game/shared/SoundEmitterSystem.cpp
 index 2c93c491..62b2d548 100644
 --- a/src/game/shared/SoundEmitterSystem.cpp
@@ -812,6 +842,36 @@ index f301bbf3..7c4d784e 100644
  
  		def.AddAmmoType("StriderMinigunDirect",	DMG_BULLET,				TRACER_LINE,			2, 2, 15, 1.0 * 750 * 12, AMMO_FORCE_DROP_IF_CARRIED ); // hit like a 1.0kg weight at 750 ft/s
  		def.AddAmmoType("HelicopterGun",	DMG_BULLET,					TRACER_LINE_AND_WHIZ,	"sk_npc_dmg_helicopter_to_plr", "sk_npc_dmg_helicopter",	"sk_max_smg1",	BULLET_IMPULSE(400, 1225), AMMO_FORCE_DROP_IF_CARRIED | AMMO_INTERPRET_PLRDAMAGE_AS_DAMAGE_TO_PLAYER );
+diff --git a/src/game/shared/ragdoll_shared.cpp b/src/game/shared/ragdoll_shared.cpp
+index 51376d6f..42c5c5cc 100644
+--- a/src/game/shared/ragdoll_shared.cpp
++++ b/src/game/shared/ragdoll_shared.cpp
+@@ -779,8 +779,6 @@ bool ShouldRemoveThisRagdoll( CBaseAnimating *pRagdoll )
+ 	}
+ 
+ #else
+-	CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
+-
+ 	if( !UTIL_FindClientInPVS( pRagdoll->edict() ) )
+ 	{
+ 		if ( g_debug_ragdoll_removal.GetBool() )
+@@ -788,7 +786,15 @@ bool ShouldRemoveThisRagdoll( CBaseAnimating *pRagdoll )
+ 
+ 		return true;
+ 	}
+-	else if( !pPlayer->FInViewCone( pRagdoll ) )
++
++	// halfcraft: in view of no player (valve asked the local player alone, which a dedicated server hasn't)
++	bool bSeen = false;
++	for ( int i = 1; i <= gpGlobals->maxClients && !bSeen; ++i )
++	{
++		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
++		bSeen = pPlayer && pPlayer->IsAlive() && pPlayer->FInViewCone( pRagdoll );
++	}
++	if( !bSeen )
+ 	{
+ 		if ( g_debug_ragdoll_removal.GetBool() )
+ 			 NDebugOverlay::Line( pRagdoll->GetAbsOrigin(), pRagdoll->GetAbsOrigin() + Vector( 0, 0, 64 ), 0, 0, 255, true, 5 );
 diff --git a/src/game/shared/usercmd.cpp b/src/game/shared/usercmd.cpp
 index 84ffa243..0e0d20f4 100644
 --- a/src/game/shared/usercmd.cpp

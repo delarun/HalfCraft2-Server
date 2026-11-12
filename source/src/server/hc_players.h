@@ -12,6 +12,10 @@ namespace halfcraft
 	/// rules (see there).
 	CBasePlayer* host_player();
 
+	/// the player of a game for one (maxClients 1): what valve's UTIL_GetLocalPlayer gave before a dedicated server's
+	/// stood in for it (util.cpp). nullptr in a game for more than one, where it means none in particular.
+	CBasePlayer* singleplayer_player();
+
 	/// the player is the host's (host_player()). false for nullptr.
 	bool is_host(const CBasePlayer* player);
 

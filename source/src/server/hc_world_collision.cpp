@@ -25,6 +25,7 @@
 #include "core/hc_dig_ground.h"
 #include "core/hc_dig_material.h"
 #include "core/hc_log.h"
+#include "server/hc_players.h"
 #include "server/hc_block_solids.h"
 #include "server/hc_dig.h"
 #include "server/hc_world_collision.h"
@@ -290,7 +291,7 @@ namespace halfcraft
 				return false;
 			}
 			// PassServerEntityFilter: the player goes through what it owns (its grenades, its rockets) and its owner
-			if (CBasePlayer* player = UTIL_GetLocalPlayer(); player && (entity->GetOwnerEntity() == player || player->GetOwnerEntity() == entity)) {
+			if (CBasePlayer* player = singleplayer_player(); player && (entity->GetOwnerEntity() == player || player->GetOwnerEntity() == entity)) {
 				return false;
 			}
 			// enginetrace skips a studio model whose contents the mask hasn't

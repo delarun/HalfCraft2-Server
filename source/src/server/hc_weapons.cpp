@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "core/hc_log.h"
+#include "server/hc_players.h"
 #include "server/hc_weapons.h"
 #include "shared/hc_hooks.h"
 #include "shared/hc_weapon_ids.h"
@@ -292,7 +293,7 @@ CON_COMMAND(hc_weapons, "halfcraft: list the player's weapons the way minecraft 
 {
 	CBasePlayer* player = UTIL_GetCommandClient();
 	if (!player) {
-		player = UTIL_GetLocalPlayer();
+		player = halfcraft::singleplayer_player();
 	}
 	if (!player) {
 		Msg("hc_weapons: no player\n");

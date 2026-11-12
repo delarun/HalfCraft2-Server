@@ -18,6 +18,11 @@ namespace halfcraft
 		return engine->IsDedicatedServer() ? nullptr : UTIL_PlayerByIndex(1);
 	}
 
+	CBasePlayer* singleplayer_player()
+	{
+		return gpGlobals->maxClients > 1 ? nullptr : UTIL_PlayerByIndex(1);
+	}
+
 	bool is_host(const CBasePlayer* player)
 	{
 		return player != nullptr && player == host_player();

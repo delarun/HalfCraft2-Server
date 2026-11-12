@@ -13,6 +13,7 @@
 
 #include "halfcraft_protocol.h"
 #include "core/hc_log.h"
+#include "server/hc_players.h"
 #include "core/hc_module.h"
 #include "core/hc_units.h"
 #include "server/hc_block_solids.h"
@@ -237,7 +238,7 @@ private:
 	/// @param cell - its minecraft block coords
 	bool LookedAtBlock(int cell[3])
 	{
-		CBasePlayer* player = UTIL_GetLocalPlayer();
+		CBasePlayer* player = halfcraft::singleplayer_player();
 		if (!player) {
 			return false;
 		}

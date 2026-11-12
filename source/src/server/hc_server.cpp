@@ -133,7 +133,7 @@ namespace halfcraft
 			/// hc_debug_voxels
 			void check_voxels(int radius)
 			{
-				CBasePlayer* player = UTIL_GetLocalPlayer();
+				CBasePlayer* player = singleplayer_player();
 				if (!player) {
 					log_info("hc_debug_voxels: no player");
 					return;
@@ -146,7 +146,7 @@ namespace halfcraft
 			/// hc_debug_dig_material
 			void log_dig_material()
 			{
-				CBasePlayer* player = UTIL_GetLocalPlayer();
+				CBasePlayer* player = singleplayer_player();
 				if (!player) {
 					log_info("hc_debug_dig_material: no player");
 					return;
@@ -211,7 +211,7 @@ namespace halfcraft
 			solids_.update(dedicated_ ? &relayed_solids_ : nullptr);  // minecraft's blocks stop npcs, props and bullets
 			dig_.update(streamer_.get(), dedicated_ ? &relayed_dug_ : nullptr);  // and the cells it dug come out of the collision it gets
 
-			CBasePlayer* player = UTIL_GetLocalPlayer();
+			CBasePlayer* player = singleplayer_player();
 			const bool   puppeted = player && server_player_puppeted();
 			if (dig_.outlined() && player) {
 				outline_cut_pieces(player);  // hc_debug_dig
