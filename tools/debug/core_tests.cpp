@@ -33,6 +33,7 @@
 #include "core/hc_dig_void.h"
 #include "core/hc_dug_cells.h"
 #include "core/hc_link_names.h"
+#include "core/hc_sandbox.h"
 
 using namespace halfcraft;
 
@@ -1546,6 +1547,43 @@ namespace
 		CHECK(!valid_link_id(std::string_view("a\0b", 3)));
 	}
 
+	void test_sandbox()
+	{
+		using namespace halfcraft::sandbox;
+		// d2_coast_01's jeep, its crane sequence and a scene, as the map's lump has them (outputs with ESC)
+		const std::string lump =
+			"{\n\"classname\" \"prop_vehicle_jeep\"\n\"targetname\" \"jeep\"\n\"VehicleLocked\" \"1\"\n"
+			"\"PlayerOn\" \"jeep_escape_relay\x1bTrigger\x1b\x1b" "0\x1b-1\"\n}\n"
+			"{\n\"classname\" \"logic_auto\"\n\"OnMapSpawn\" \"jeep\x1bTurnOff\x1b\x1b" "0\x1b" "1\"\n"
+			"\"OnMapSpawn\" \"cranedriver,SetRelationship,!player D_NU 99,0,1\"\n}\n"
+			"{\n\"classname\" \"logic_relay\"\n\"OnTrigger\" \"JEEP,lock,,0,1\"\n\"OnTrigger\" \"car_hold,Kill,,6,1\"\n}\n"
+			"{\n\"classname\" \"logic_choreographed_scene\"\n\"targetname\" \"scene_1\"\n}\n"
+			"{\n\"classname\" \"ai_goal_lead\"\n}\n"
+			"{\n\"classname\" \"trigger_changelevel\"\n\"map\" \"d2_coast_03\"\n}\n"
+			"{\n\"classname\" \"prop_vehicle_crane\"\n\"targetname\" \"crane\"\n\"VehicleLocked\" \"1\"\n}\n"
+			"{\n\"classname\" \"npc_combine_s\"\n\"origin\" \"1 2 3\"\n}\n";
+		const auto entities = parse(lump);
+		CHECK(entities.size() == 8);
+		CHECK(entities.size() == 8 && value_of(entities[0], "vehiclelocked") == "1");
+		CHECK(output_target("jeep\x1bTurnOff\x1b\x1b" "0\x1b" "1") == std::make_pair(std::string_view("jeep"), std::string_view("TurnOff")));
+		CHECK(output_target("a,b") == std::make_pair(std::string_view("a"), std::string_view("b")));
+		Report     report;
+		const auto kept = apply(entities, report);
+		// the scene, the ai goal and the level change go; the npc, the relay, the auto and both vehicles stay
+		CHECK(report.removed == 3 && kept.size() == 5);
+		// the jeep's lock key goes, the crane's stays (it's the story's machine, not a ride)
+		CHECK(report.unlocked == 1 && kept.size() == 5 && value_of(kept[0], "VehicleLocked").empty() && value_of(kept[3], "VehicleLocked") == "1");
+		// the outputs that lock or turn off the jeep go (any case), the others stay
+		CHECK(report.outputs_removed == 2);
+		CHECK(kept.size() == 5 && kept[1].size() == 2 && kept[1][1].second.find("cranedriver") == 0);
+		CHECK(kept.size() == 5 && kept[2].size() == 2 && kept[2][1].second == "car_hold,Kill,,6,1");
+		CHECK(kept.size() == 5 && kept[0].size() == 3 && kept[0][2].first == "PlayerOn");
+		// what serialize writes parses back to the same entities
+		CHECK(parse(serialize(kept)) == kept);
+		// a lump cut short ends the list there
+		CHECK(parse("{\n\"a\" \"b\"\n}\n{\n\"c\" \"d").size() == 1);
+	}
+
 	void test_link_names()
 	{
 		// no id: the names halfcraft always had
@@ -1698,6 +1736,7 @@ int run_tests()
 	test_campaign_model_restore();
 	test_valid_link_id();
 	test_link_names();
+	test_sandbox();
 	test_choose_link_id();
 	test_is_map_name_takes_map_names_only();
 	test_host_commands_set_up_a_two_slot_lan_server();

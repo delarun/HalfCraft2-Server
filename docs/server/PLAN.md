@@ -3,7 +3,7 @@
 - Date: 2026-11-12
 - Goal: a persistent server people join whenever they like. Every player runs Half-Life 2: Deathmatch's engine with
   HalfCraft's client and a hidden Minecraft, as in single player. The main map is the whole Highway 17 chapter
-  (`d2_coast_01` … `d2_coast_08`). Level transitions are Minecraft portals.
+  (`d2_coast_01`, `03`, `04`, `05`, `07`, `08`: Valve cut `02` and `06`). Level transitions are Minecraft portals.
 - Platform: the server runs on Linux. Clients run on Linux (built and tested here) and Windows (upstream's build, not
   tested in this fork yet).
 - Builds on: upstream's co-op M1 work (`cooptest` branch, `docs/superpowers` spec at `69f293c`): the link id, the
@@ -23,9 +23,9 @@
 ```
 
 - **Source.** One `srcds_linux64` per map, each with HalfCraft's `server.so`. A Source server runs one map, so a
-  chapter of 8 maps is 8 servers, each on its own port. A player is on one map at a time.
+  chapter of 6 maps is 6 servers, each on its own port. A player is on one map at a time.
 - **Minecraft.** One dedicated Fabric server. Every Half-Life map already has its own slot along x in HalfCraft's mirror
-  world (`Rollback.mapEntered`, `SLOT_CHUNKS`), so all 8 maps live in one world. A player in Minecraft is where their
+  world (`Rollback.mapEntered`, `SLOT_CHUNKS`), so all 6 maps live in one world. A player in Minecraft is where their
   Source player is.
 - **Server link.** Today `server.dll` attaches to the mapping `client.dll` creates in the same process. In a dedicated
   server there is no `client.dll`: `server.so` creates its own mapping (link id `srv-<map>`) with the server's regions
@@ -67,7 +67,7 @@
 | **S0** | Source dedicated runs the campaign | `srcds_linux64` with HalfCraft's `server.so` runs `d2_coast_01`; two clients (two copies on one PC) connect, walk, shoot NPCs, die and respawn. Minecraft is off. |
 | **S1** | One Minecraft server | The mod loads on a dedicated Fabric server, which links to `server.so` and relays collision. Each client's Minecraft joins it by itself. Two players move with their own Minecraft, see each other, and place and break blocks both see. Digging works for both. |
 | **S2** | Per-player game | Health, hurts, heals, weapons, death and respawn per player. NPCs and bullets collide with Minecraft blocks and dug holes (from the Minecraft server). Mobs and actors near any player. |
-| **S3** | Highway 17 | Eight servers, eight slots, portals at the transitions. A player walks from `d2_coast_01` to `d2_coast_08` and back. The buggy. |
+| **S3** | Highway 17 | Six servers, six slots, portals at the transitions. A player walks from `d2_coast_01` to `d2_coast_08` and back. The buggy. |
 | **S4** | Running it | One command (systemd units or compose) starts and stops all of it. Configuration, a whitelist, backups. A client package for players. |
 
 ## Decisions (the user's, 2026-11-12)
