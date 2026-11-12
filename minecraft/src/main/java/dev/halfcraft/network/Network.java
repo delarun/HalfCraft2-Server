@@ -50,11 +50,15 @@ public final class Network {
 	public record Place(String pair, double x, double y, double z, float yaw, float pitch) {
 	}
 
-	/** The server tells a player's Minecraft to have its Half-Life connect to another map's server ("ip:port"). */
-	public record ConnectPayload(String address) implements CustomPacketPayload {
+	/**
+	 * The server tells a player's Minecraft to have its Half-Life connect to another map's server ("ip:port"), and
+	 * itself to go to that pair's Minecraft server at once (the same ip, minecraftPort): left to follow Half-Life, it
+	 * went solo while Half-Life was between servers, opened a world of its own, and rejoined the old one.
+	 */
+	public record ConnectPayload(String address, int minecraftPort) implements CustomPacketPayload {
 		public static final Type<ConnectPayload> TYPE = new Type<>(Identifier.fromNamespaceAndPath(HalfCraft.MOD_ID, "connect"));
 		public static final StreamCodec<ByteBuf, ConnectPayload> CODEC = StreamCodec.composite(ByteBufCodecs.STRING_UTF8, ConnectPayload::address,
-			ConnectPayload::new);
+			ByteBufCodecs.VAR_INT, ConnectPayload::minecraftPort, ConnectPayload::new);
 
 		@Override
 		public Type<? extends CustomPacketPayload> type() {
@@ -66,6 +70,8 @@ public final class Network {
 	private static final Gson GSON = new Gson();
 	/** Ticks after a player joins a pair before the place they came for is theirs: Half-Life's spawn teleport first. */
 	private static final int ARRIVAL_TICKS = 100;
+	/** How often the hub looks for maps' pairs nobody is on, and how long nobody has to be on one before it stops. */
+	private static final int IDLE_CHECK_TICKS = 20 * 60, IDLE_MINUTES = 10;
 
 	private static @Nullable Path folder;
 	private static String host = "127.0.0.1";
@@ -179,7 +185,7 @@ public final class Network {
 					return;
 				}
 				HalfCraft.LOG.info("HalfCraft: {} goes to {} ({}:{})", still.getName().getString(), to.name(), host, to.srcds());
-				ServerPlayNetworking.send(still, new ConnectPayload(host + ":" + to.srcds()));
+				ServerPlayNetworking.send(still, new ConnectPayload(host + ":" + to.srcds(), to.minecraft()));
 			});
 		});
 	}
@@ -219,6 +225,20 @@ public final class Network {
 		}
 		if (HUB.equals(current)) {
 			HubPortals.tick(server);
+			if (ticks % IDLE_CHECK_TICKS == 0) {
+				// the maps' pairs nobody has been on for a while stop (network.py idle), off the server thread
+				Path repo = folder.getParent().getParent();
+				Thread.ofVirtual().name("HalfCraft network idle").start(() -> {
+					try {
+						new ProcessBuilder("python3", repo.resolve("tools/server/network.py").toString(), "idle", String.valueOf(IDLE_MINUTES)).directory(repo.toFile())
+							.redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.appendTo(folder.resolve(HUB).resolve("idle.log").toFile())).start().waitFor();
+					} catch (IOException e) {
+						HalfCraft.LOG.warn("HalfCraft: can't look for idle pairs", e);
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+					}
+				});
+			}
 		}
 	}
 

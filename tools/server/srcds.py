@@ -85,7 +85,23 @@ def link(path: Path, target: Path) -> None:
     path.symlink_to(target)
 
 
+def srcds_running() -> bool:
+    """whether any srcds_linux64 runs: they map server.so and the rest from the game folder."""
+    for proc in Path("/proc").iterdir():
+        try:
+            if proc.name.isdigit() and (proc / "cmdline").read_bytes().split(b"\0")[0].endswith(b"srcds_linux64"):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def layout(srcds: Path, hl2: Path) -> None:
+    if srcds_running():
+        # copying over the libraries a running server has mapped crashed it (SIGSEGV, SIGBUS): the next layout
+        # waits until none runs
+        print("a source server runs: the game folder stays as it is")
+        return
     client_install = ENGINE.find_exe().parent
     for name, source in (("srcds_linux64", client_install / "srcds_linux64"), ("bin/linux64/libsteam_api.so", client_install / "bin/linux64/libsteam_api.so")):
         if not (srcds / name).is_file():
@@ -134,12 +150,14 @@ def main() -> None:
     parser.add_argument("--link", default="srv", help="the server's own link id")
     parser.add_argument("--mc-port", type=int, default=25565, help="the halfcraft server's minecraft port, which each player's minecraft joins")
     parser.add_argument("--log", type=Path, help="also write the console to this file")
+    parser.add_argument("--no-layout", action="store_true", help="run with the game folder as it is (another server runs from it)")
     parser.add_argument("extra", nargs="*", help="more server arguments, after --")
     options = parser.parse_args()
     if not engines.LINUX:
         raise ToolError("the dedicated server tooling is linux only")
     srcds = server_folder(options.srcds)
-    layout(srcds, hl2_folder(options.hl2))
+    if not options.no_layout:
+        layout(srcds, hl2_folder(options.hl2))
     if options.what == "run":
         raise SystemExit(
             run(

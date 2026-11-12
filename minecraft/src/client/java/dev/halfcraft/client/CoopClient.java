@@ -43,10 +43,43 @@ public final class CoopClient {
 	private CoopClient() {
 	}
 
+	/** Where Minecraft goes while the HalfCraft server sends the player to another pair, and until when at most. */
+	private static CoopPlan.@Nullable Wanted switching;
+	private static long switchUntilMs;
+	private static final long SWITCH_MS = 90_000L;
+
+	/**
+	 * The HalfCraft server sends the player to another pair (Network.ConnectPayload): Minecraft goes to its Minecraft
+	 * server at once, the Source server's ip at {@code minecraftPort}, until Half-Life names it itself.
+	 */
+	public static void switchTo(String sourceAddress, int minecraftPort) {
+		String[] ip = sourceAddress.split(":")[0].split("\\.");
+		if (ip.length != 4) {
+			return;
+		}
+		int packed = 0;
+		for (String part : ip) {
+			packed = packed << 8 | Integer.parseInt(part) & 0xFF;
+		}
+		switching = new CoopPlan.Wanted(Proto.COOP_GUEST, packed, minecraftPort);
+		switchUntilMs = System.currentTimeMillis() + SWITCH_MS;
+		failedAtMs = 0;
+		HalfCraft.LOG.info("HalfCraft: to another pair: Minecraft goes to {}", CoopPlan.address(packed, minecraftPort));
+	}
+
 	/** Once a frame, after HostClient read the HostState: one step toward what Half-Life wants. */
 	public static void frame(Minecraft minecraft, HostLink.HostState host) {
-		if (host.coopMode != wanted.mode() || host.coopIp != wanted.ip() || host.coopPort != wanted.port()) {
-			wanted = new CoopPlan.Wanted(host.coopMode, host.coopIp, host.coopPort);
+		CoopPlan.Wanted reported = new CoopPlan.Wanted(host.coopMode, host.coopIp, host.coopPort);
+		if (switching != null) {
+			// on the way to another pair: Half-Life's solo and its old server meanwhile are left alone
+			if (reported.equals(switching) || System.currentTimeMillis() > switchUntilMs) {
+				switching = null;
+			} else {
+				reported = switching;
+			}
+		}
+		if (reported.mode() != wanted.mode() || reported.ip() != wanted.ip() || reported.port() != wanted.port()) {
+			wanted = reported;
 			failedAtMs = 0; // a new target is tried at once
 			HalfCraft.LOG.info("HalfCraft: Half-Life's co-op: {}", mode());
 		}

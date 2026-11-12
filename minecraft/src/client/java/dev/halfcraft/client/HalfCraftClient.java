@@ -30,6 +30,7 @@ public final class HalfCraftClient implements ClientModInitializer {
 		// the halfcraft server sends the player to another map's pair: their Half-Life connects, Minecraft follows
 		net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.registerGlobalReceiver(dev.halfcraft.network.Network.ConnectPayload.TYPE,
 			(payload, context) -> {
+				CoopClient.switchTo(payload.address(), payload.minecraftPort());
 				byte[] address = payload.address().getBytes(java.nio.charset.StandardCharsets.US_ASCII);
 				if (!dev.halfcraft.link.HostLink.writeRender(dev.halfcraft.link.Proto.REN_CONNECT, java.nio.ByteBuffer.wrap(address), null)) {
 					dev.halfcraft.HalfCraft.LOG.warn("HalfCraft: couldn't tell Half-Life to connect to {}", payload.address());

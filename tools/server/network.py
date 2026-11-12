@@ -154,7 +154,7 @@ def start(pair: dict, srcds: str | None) -> None:
     running = processes().get(pair["name"], {})
     if "srcds" not in running:
         extra = ["--srcds", srcds] if srcds else []
-        command = [sys.executable, str(SRCDS), "run", *extra, "--map", pair["map"], "--port", str(pair["srcds"]), "--link", f"srv-{pair['name']}",
+        command = [sys.executable, str(SRCDS), "run", "--no-layout", *extra, "--map", pair["map"], "--port", str(pair["srcds"]), "--link", f"srv-{pair['name']}",
                    "--mc-port", str(pair["minecraft"]), "--log", str(here / "srcds.log")]  # fmt: skip
         with open(here / "srcds.out", "w") as out:
             subprocess.Popen(command, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
@@ -250,6 +250,9 @@ def main() -> None:
         layout()
     elif options.what == "start":
         layout()
+        if not processes():
+            # the game folder, once, before any of the network's source servers maps it
+            subprocess.run([sys.executable, str(SRCDS), "layout", *(["--srcds", options.srcds] if options.srcds else [])], check=True)
         start(find(options.name or HUB[0]), options.srcds)
     elif options.what == "ensure":
         ensure(find(options.name), options.srcds)
