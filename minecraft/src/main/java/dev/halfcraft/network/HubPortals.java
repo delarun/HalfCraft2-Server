@@ -83,6 +83,7 @@ public final class HubPortals {
 		}
 		for (ServerPlayer player : players) {
 			BlockPos feet = player.blockPosition();
+			label(player, feet);
 			String to = layout.openings().get(key(feet));
 			if (to == null) {
 				to = layout.openings().get(key(feet.above()));
@@ -90,6 +91,32 @@ public final class HubPortals {
 			if (to != null) {
 				Network.send(player, to, null);
 			}
+		}
+	}
+
+	/** How near a portal's opening a player is told where it goes (over the hotbar). */
+	private static final int LABEL_REACH = 3;
+
+	/**
+	 * The map and chapter of the portal nearest the player, over the hotbar while they're near one: Half-Life draws
+	 * Minecraft's blocks, not the words on its signs.
+	 */
+	private static void label(ServerPlayer player, BlockPos feet) {
+		String nearest = null;
+		int best = Integer.MAX_VALUE;
+		for (int dx = -LABEL_REACH; dx <= LABEL_REACH; dx++) {
+			for (int dz = -LABEL_REACH; dz <= LABEL_REACH; dz++) {
+				String to = layout.openings().get(key(feet.offset(dx, 0, dz)));
+				int distance = dx * dx + dz * dz;
+				if (to != null && distance < best) {
+					best = distance;
+					nearest = to;
+				}
+			}
+		}
+		Network.Pair pair = nearest != null ? Network.pair(nearest) : null;
+		if (pair != null) {
+			player.sendSystemMessage(Component.literal(pair.map() + "  —  " + pair.chapter()), true);
 		}
 	}
 
@@ -163,9 +190,13 @@ public final class HubPortals {
 		return maps;
 	}
 
-	/** A portal: a frame of crying obsidian round a 1 by 2 opening at {@code bottom}, its map's name on a sign over it. */
+	/**
+	 * A portal: a frame of obsidian round a 1 by 2 opening at {@code bottom}, its map's name on a sign over it. Not a
+	 * block that shines: Half-Life lights each light near the player with shadow maps, and 68 portals' crying obsidian
+	 * made it crawl.
+	 */
 	private static void portal(ServerLevel level, BlockPos bottom, Network.Pair pair, Map<String, String> openings) {
-		BlockState frame = Blocks.CRYING_OBSIDIAN.defaultBlockState();
+		BlockState frame = Blocks.OBSIDIAN.defaultBlockState();
 		for (int dx = -1; dx <= 1; dx++) {
 			for (int dy = -1; dy <= 2; dy++) {
 				BlockPos at = bottom.offset(dx, dy, 0);
