@@ -171,6 +171,12 @@ public final class HostDigClient {
 		if (target == null) {
 			return false;
 		}
+		var delay = (dev.halfcraft.client.mixin.GameModeDelayAccessor) minecraft.gameMode;
+		if (delay.halfcraft$getDestroyDelay() > 0) {
+			// Minecraft broke a block of its own a moment ago: the wall behind it waits, as Minecraft's next block would
+			delay.halfcraft$setDestroyDelay(delay.halfcraft$getDestroyDelay() - 1);
+			return true;
+		}
 		BlockPos pos = target.pos();
 		LocalPlayer player = minecraft.player;
 		ClientLevel level = minecraft.level;
@@ -182,6 +188,8 @@ public final class HostDigClient {
 			knock(minecraft, level, target, state);
 		} else if (step == DigProgress.Step.OPEN) {
 			open(minecraft, player, pos, material);
+			// and a block of Minecraft's behind it waits too
+			delay.halfcraft$setDestroyDelay(DigProgress.DELAY_TICKS);
 		}
 		return true;
 	}
