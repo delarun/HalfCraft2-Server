@@ -141,10 +141,6 @@ namespace halfcraft
 	/// (client/hc_dig.h, dig_holes_near).
 	void client_draw_unplaced_blocks(bool translucent);
 
-	/// CViewRender::DrawWorldAndEntities: the world drawn in one simple view, its water cheap (no reflection, no
-	/// refraction), while holes near the player have the whole map drawn (dig_holes_near): the engine crashed drawing
-	/// the above-water view and its reflection then, the camera in a dug cell over the sea (DrawWorldLists).
-	bool client_simple_world_view();
 
 	/// CGameMovement::HalfCraftMove, in prediction, and server.dll's (HC_JUMP_LANDED_EXPORT): source
 	/// took one of minecraft's jumps next to where minecraft put its player, which didn't fit (a pearl

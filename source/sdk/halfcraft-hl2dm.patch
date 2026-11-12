@@ -472,7 +472,7 @@ index de0c0b07..bae40167 100644
  	{
  		// Let the headtracking read the status of the HMD, etc.
 diff --git a/src/game/client/viewrender.cpp b/src/game/client/viewrender.cpp
-index b4011e28..a4e6e827 100644
+index b4011e28..1ff3f756 100644
 --- a/src/game/client/viewrender.cpp
 +++ b/src/game/client/viewrender.cpp
 @@ -80,6 +80,8 @@
@@ -484,17 +484,7 @@ index b4011e28..a4e6e827 100644
  // memdbgon must be the last include file in a .cpp file!!!
  #include "tier0/memdbgon.h"
  
-@@ -2671,7 +2673,8 @@ void CViewRender::DrawWorldAndEntities( bool bDrawSkybox, const CViewSetup &view
- 	WaterRenderInfo_t info;
- 	DetermineWaterRenderInfo( fogVolumeInfo, info );
- 
--	if ( info.m_bCheapWater )
-+	// halfcraft: while holes near the player have the whole map drawn, one simple view (see client_simple_world_view)
-+	if ( info.m_bCheapWater || halfcraft::client_simple_world_view() )
- 	{		     
- 		tmZone( TELEMETRY_LEVEL0, TMZF_NONE, "bCheapWater" );
- 		cplane_t glassReflectionPlane;
-@@ -5122,11 +5125,16 @@ void CShadowDepthView::Draw()
+@@ -5122,11 +5124,16 @@ void CShadowDepthView::Draw()
  
  	MDLCACHE_CRITICAL_SECTION();
  
@@ -511,7 +501,7 @@ index b4011e28..a4e6e827 100644
  	{
  		VPROF_BUDGET( "BuildRenderableRenderLists", VPROF_BUDGETGROUP_SHADOW_DEPTH_TEXTURING );
  		BuildRenderableRenderLists( CurrentViewID() );
-@@ -5136,21 +5144,27 @@ void CShadowDepthView::Draw()
+@@ -5136,21 +5143,27 @@ void CShadowDepthView::Draw()
  
  	m_DrawFlags = m_pMainView->GetBaseDrawFlags() | DF_RENDER_UNDERWATER | DF_RENDER_ABOVEWATER | DF_SHADOW_DEPTH_MAP;	// Don't draw water surface...
  
@@ -549,7 +539,7 @@ index b4011e28..a4e6e827 100644
  
  	m_DrawFlags = 0;
  
-@@ -5525,6 +5539,8 @@ void CBaseWorldView::DrawExecute( float waterHeight, view_id_t viewID, float wat
+@@ -5525,6 +5538,8 @@ void CBaseWorldView::DrawExecute( float waterHeight, view_id_t viewID, float wat
  	{
  		DrawWorld( waterZAdjust );
  		DrawOpaqueRenderables( DepthMode );
@@ -558,7 +548,7 @@ index b4011e28..a4e6e827 100644
  
  #ifdef TF_CLIENT_DLL
  		bool bVisionOverride = ( localplayer_visionflags.GetInt() & ( 0x01 ) ); // Pyro-vision Goggles
-@@ -5535,6 +5551,7 @@ void CBaseWorldView::DrawExecute( float waterHeight, view_id_t viewID, float wat
+@@ -5535,6 +5550,7 @@ void CBaseWorldView::DrawExecute( float waterHeight, view_id_t viewID, float wat
  		}
  #endif
  		DrawTranslucentRenderables( false, false );
