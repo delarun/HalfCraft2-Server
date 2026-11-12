@@ -155,12 +155,28 @@ namespace halfcraft
 		const char*         classname = cls == proto::kPropClassDoor ? "prop_door_rotating" : cls == proto::kPropClassDynamic ? "prop_dynamic"
 																															  : "prop_physics";
 		const QAngle        angles(0.0f, player->EyeAngles().y + (cls == proto::kPropClassDoor ? 90.0f : 0.0f), 0.0f);
-		Vector              at = probe.endpos;
+		// the model's box as it will stand (turned by its yaw), around its origin: a door's is its hinge, mid-height
+		Vector box_min(-PROBE_HALF, -PROBE_HALF, -PROBE_HALF), box_max(PROBE_HALF, PROBE_HALF, PROBE_HALF);
+		if (const model_t* model_info = modelinfo->GetModel(modelinfo->GetModelIndex(model.c_str()))) {
+			Vector mins, maxs;
+			modelinfo->GetModelRenderBounds(model_info, mins, maxs);
+			matrix3x4_t turn;
+			AngleMatrix(angles, turn);
+			TransformAABB(turn, mins, maxs, box_min, box_max);
+		}
+		// out from the eye where all of it fits (its box's middle on the line of sight), then down onto the floor
+		const Vector middle = (box_min + box_max) * 0.5f;
+		trace_t      fit;
+		UTIL_TraceHull(eye, eye + forward * PLACE_REACH, box_min - middle, box_max - middle, MASK_SOLID, player, COLLISION_GROUP_NONE, &fit);
+		Vector at = (fit.startsolid ? probe.endpos : fit.endpos) - middle;
 		if (cls != proto::kPropClassPhysics) {
-			// a door and a dynamic prop stand where they're put: on the floor under that spot
+			// a door and a dynamic prop stand where they're put, their bottom a unit over the floor (a door touching it
+			// finds its swing blocked)
 			trace_t down;
-			UTIL_TraceLine(at, at - Vector(0.0f, 0.0f, 512.0f), MASK_SOLID, player, COLLISION_GROUP_NONE, &down);
-			at = down.endpos;
+			UTIL_TraceHull(at, at - Vector(0.0f, 0.0f, 512.0f), box_min, box_max, MASK_SOLID, player, COLLISION_GROUP_NONE, &down);
+			if (!down.startsolid) {
+				at = down.endpos + Vector(0.0f, 0.0f, 1.0f);
+			}
 		}
 		CBaseEntity* prop = CreateEntityByName(classname);
 		if (!prop) {
@@ -189,13 +205,6 @@ namespace halfcraft
 				place_prop(player, 0, proto::kPropClassDynamic, model);
 				return;
 			}
-			// its own size, out from the eye again: where all of it fits
-			const Vector mins = prop->CollisionProp()->OBBMins(), maxs = prop->CollisionProp()->OBBMaxs();
-			const float  half = std::max({ -mins.x, -mins.y, maxs.x, maxs.y }) * 0.75f;
-			trace_t      fit;
-			UTIL_TraceHull(eye, eye + forward * PLACE_REACH, Vector(-half, -half, mins.z), Vector(half, half, maxs.z), MASK_SOLID, player, COLLISION_GROUP_NONE, &fit);
-			at = fit.startsolid ? probe.endpos : fit.endpos;
-			prop->Teleport(&at, &angles, &vec3_origin);
 		}
 		log_info("props: player %d put %s (%s) at (%.0f %.0f %.0f)", player->GetUserID(), model.c_str(), classname, at.x, at.y, at.z);
 	}
