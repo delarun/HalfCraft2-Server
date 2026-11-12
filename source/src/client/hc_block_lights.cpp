@@ -727,10 +727,7 @@ namespace halfcraft
 		void BlockLights::refresh(float now, float frametime)
 		{
 			const float brightness = std::max(0.0f, hc_torch_light.GetFloat());
-			// none while holes near the player have the whole map drawn (dig_holes_near): each shadowed light draws the world
-			// again for its shadow maps and its own pass, and the engine crashed in DrawWorldLists with them, a fire on a
-			// dug pier. minecraft's blocks keep minecraft's own light
-			const int shadowed = dig_holes_near() ? 0 : std::clamp(hc_torch_light_count.GetInt(), 0, MAX_POINT_LIGHTS);
+			const int shadowed = std::clamp(hc_torch_light_count.GetInt(), 0, MAX_POINT_LIGHTS);
 			assign_slots(shadowed, frametime);
 			for (std::size_t i = 0; i < slots_.size(); ++i) {
 				Slot& s = slots_[i];

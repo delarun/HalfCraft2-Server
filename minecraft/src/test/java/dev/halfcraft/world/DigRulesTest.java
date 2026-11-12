@@ -286,16 +286,6 @@ class DigRulesTest {
 	}
 
 	@Test
-	void shouldRevealRockUnderTheGroundEvenWithTheGroundsFaceOnIt() {
-		// the void against the map's air, as below, but rock under the ground: a hole's side, revealed to be mined
-		World w = new World();
-		w.voids.put(new Pos(-1, 0, 0), FULL);
-		w.ground.add(new Pos(-1, 0, 0));
-		w.occupancy.put(new Pos(-1, 0, 1), face(2));
-		assertEquals(List.of(new DigRules.Reveal(-1, 0, 0, DIG_DIRT, true)), reveals(w, 0, 0, 0, DIG_DIRT, false));
-	}
-
-	@Test
 	void shouldRevealTheVoidBehindAThinWallButNotVoidAgainstTheMapsAirWhetherOrNotMoreMayBeDug() {
 		// W1 of d1_trainstation_02: the wall's surface cell holds its brush on the face it shares with the
 		// void cell beside the tunnel, the room's air beyond: the void cell shows no face

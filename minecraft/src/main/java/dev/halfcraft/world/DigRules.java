@@ -75,8 +75,7 @@ public final class DigRules {
 	 * in one would hang against the skybox; one partly void is revealed, so a tunnel goes on through the
 	 * void there); with {@code brushlessOnly} (Half-Life lets nothing more be dug), it holds none of
 	 * Half-Life's brushes, so marking it dug cuts nothing out of Half-Life's walls; it is wholly rock; it
-	 * isn't dug; Minecraft has nothing in it; and, unless it is rock under the ground (Cells.ground),
-	 * it isn't {@link #exposed}: a block put there would cover a face Half-Life draws (a floor under a
+	 * isn't dug; Minecraft has nothing in it; and it isn't {@link #exposed}: a block put there would cover a face Half-Life draws (a floor under a
 	 * room's air, the wall next to the hole).
 	 */
 	public static List<Reveal> reveals(Cells cells, int x, int y, int z, int material, boolean brushlessOnly) {
@@ -95,9 +94,9 @@ public final class DigRules {
 				continue;
 			}
 			boolean natural = voidCount(voids) >= SUB_VOXELS / 2;
-			// rock under the ground is revealed even with a face of the ground Half-Life draws on it: kept, it would be a
-			// hole's side or bottom with nothing to mine (no block, no triangle)
-			if (whollyRock(occupancy, voids) && !cells.dug(nx, ny, nz) && cells.air(nx, ny, nz) && (cells.ground(nx, ny, nz) || !exposed(cells, nx, ny, nz))) {
+			// a cell with a face Half-Life draws stays Half-Life's, rock under the ground too (revealed, it stood out of the
+			// ground): a hole's side there is mined where the look meets its collision (HostDigClient.holeWall)
+			if (whollyRock(occupancy, voids) && !cells.dug(nx, ny, nz) && cells.air(nx, ny, nz) && !exposed(cells, nx, ny, nz)) {
 				out.add(new Reveal(nx, ny, nz, natural ? knownMaterial(material) : revealMaterial(voids, material), natural));
 			}
 		}
