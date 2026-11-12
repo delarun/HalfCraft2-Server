@@ -31,6 +31,10 @@ public final class HalfCraft implements ModInitializer {
 		// half-life's walls dig like blocks: the dug cells live in minecraft's chunks
 		dev.halfcraft.world.HostDig.init();
 		ServerLifecycleEvents.SERVER_STARTED.register(HalfCraft::configureServer);
+		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+			dev.halfcraft.world.VanillaUnderground.clear();
+			dev.halfcraft.world.HostDig.clearFrontier();
+		});
 		// Half-Life's saves roll Minecraft's world and player back too
 		// (a dedicated server's world simply lives on: no half-life saves to roll back to)
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {

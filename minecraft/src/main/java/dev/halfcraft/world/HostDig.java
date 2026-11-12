@@ -213,6 +213,20 @@ public final class HostDig {
 	}
 
 	private static void serverTick(MinecraftServer server) {
+		if (!FRONTIER.isEmpty() && server.getTickCount() % FRONTIER_EVERY == 0) {
+			// the edges of the caves that stopped short of the players: the ones a player came near open on
+			FRONTIER.entrySet().removeIf(e -> {
+				Cell cell = e.getKey();
+				if (!cell.level().isLoaded(cell.pos())) {
+					return true;
+				}
+				if (!nearPlayer(cell.level(), cell.pos(), CAVE_REACH - 1.0)) {
+					return false;
+				}
+				queue(cell.level(), cell.pos(), e.getValue());
+				return true;
+			});
+		}
 		if (PENDING.isEmpty()) {
 			return;
 		}
@@ -221,7 +235,13 @@ public final class HostDig {
 		// looked at only on the ticks a reveal tries
 		List<Pending> due = new ArrayList<>(PENDING.values());
 		PENDING.clear();
+		int budget = REVEALS_PER_TICK;
 		for (Pending p : due) {
+			if (budget <= 0) {
+				PENDING.putIfAbsent(p.cell(), p); // a cave opening wide: the rest on the next ticks
+				continue;
+			}
+			budget--;
 			if (!RevealRetry.tries(p.age())) {
 				PENDING.putIfAbsent(p.cell(), p.older());
 				continue;
@@ -254,15 +274,21 @@ public final class HostDig {
 		boolean voidOnly = digOff();
 		List<DigRules.Reveal> reveals = DigRules.reveals(cells(level), pos.getX(), pos.getY(), pos.getZ(), material, voidOnly);
 		int caves = 0;
+		boolean waiting = false;
 		for (DigRules.Reveal r : reveals) {
 			BlockPos cell = new BlockPos(r.x(), r.y(), r.z());
-			// natural rock is Minecraft's own underground: soil, stone, ores, caves (Underground)
-			BlockState state = r.natural()
-				? BuiltInRegistries.BLOCK.getValue(Identifier.parse(Underground.blockAt(level.getSeed(), r.x(), r.y(), r.z(), r.material(), depthUnder(r.x(), r.y(), r.z()))))
-					.defaultBlockState()
-				: stateFor(r.material());
+			// natural rock is Minecraft's own underground: the ground's soil near its surface, under it Minecraft's world
+			BlockState state = r.natural() ? naturalState(level, r) : stateFor(r.material());
+			if (state == null) {
+				waiting = true; // its chunk of Minecraft's underground is being generated: revealed on a later try
+				continue;
+			}
 			if (state.isAir() && !nearPlayer(level, cell, CAVE_REACH)) {
-				continue; // a cave this far from everyone stays rock: digging into it opens it there
+				// a cave this far from everyone stays rock for now: it opens on as a player comes near (FRONTIER)
+				if (FRONTIER.size() < FRONTIER_MAX) {
+					FRONTIER.put(new Cell(level, pos.immutable()), material);
+				}
+				continue;
 			}
 			LevelChunk chunk = level.getChunkAt(cell);
 			chunk.setAttached(DUG, column(chunk).with(r.x(), r.y(), r.z()));
@@ -278,6 +304,9 @@ public final class HostDig {
 				Rollback.forget(cell);
 			});
 		}
+		if (waiting) {
+			queue(level, pos, material);
+		}
 		if (caves > 0 && ++cavesLogged % 50 == 1) {
 			HalfCraft.LOG.info("HalfCraft: a cave opens around {} ({} of its cells now, {} so far)", pos.toShortString(), caves, cavesLogged);
 		}
@@ -289,8 +318,37 @@ public final class HostDig {
 		}
 	}
 
+	/**
+	 * What a cell of natural rock is: the ground's soil near its surface (Underground.soilAt), under it Minecraft's own
+	 * underground (VanillaUnderground), or HalfCraft's (Underground) without that level. Null while Minecraft's is being
+	 * generated there.
+	 */
+	private static @Nullable BlockState naturalState(ServerLevel level, DigRules.Reveal r) {
+		double depth = depthUnder(r.x(), r.y(), r.z());
+		String soil = Underground.soilAt(r.material(), depth);
+		if (soil != null) {
+			return BuiltInRegistries.BLOCK.getValue(Identifier.parse(soil)).defaultBlockState();
+		}
+		if (VanillaUnderground.available(level.getServer())) {
+			BlockState state = VanillaUnderground.at(level.getServer(), r.x(), r.y(), r.z());
+			// no cave right under the ground's surface: the ground over it would hang by a thread
+			return state != null && state.isAir() && depth < Underground.CAVE_MIN_DEPTH ? net.minecraft.world.level.block.Blocks.STONE.defaultBlockState() : state;
+		}
+		return BuiltInRegistries.BLOCK.getValue(Identifier.parse(Underground.blockAt(level.getSeed(), r.x(), r.y(), r.z(), r.material(), depth))).defaultBlockState();
+	}
+
 	/** Blocks a cave opens up to from the nearest player; past it, it waits for a pick. */
-	private static final double CAVE_REACH = 32.0;
+	private static final double CAVE_REACH = 24.0;
+	/** The server stopped: no cave's edge waits for a player any more. */
+	public static void clearFrontier() {
+		FRONTIER.clear();
+	}
+
+	/** The dug cells of caves whose neighbours were too far from every player to open, with what they opened as. */
+	private static final java.util.Map<Cell, Integer> FRONTIER = new java.util.HashMap<>();
+	private static final int FRONTIER_MAX = 20000, FRONTIER_EVERY = 10;
+	/** Dug cells whose rock around is looked at in one tick: a wide cave opens over a few ticks, not in one long one. */
+	private static final int REVEALS_PER_TICK = 256;
 	/** How far up the surface over natural rock is looked for (Underground's depth): deeper is just deep. */
 	private static final double DEPTH_LOOK = 16.0;
 	private static int cavesLogged;

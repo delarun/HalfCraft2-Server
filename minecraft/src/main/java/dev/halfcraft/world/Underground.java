@@ -41,7 +41,28 @@ public final class Underground {
 	}
 
 	/**
-	 * The block a cell of natural rock is.
+	 * The ground's own block near its surface (dirt under dirt and grass, sand then sandstone under sand), or null under
+	 * that: Minecraft's underground there (VanillaUnderground).
+	 *
+	 * @param surface the Proto.DIG_* material of the ground it was dug down from
+	 * @param depth blocks from the cell up to the surface over it, Double.POSITIVE_INFINITY for none near
+	 */
+	public static @org.jspecify.annotations.Nullable String soilAt(int surface, double depth) {
+		if (depth < SAND_DEPTH && surface == DIG_SAND) {
+			return "minecraft:sand";
+		}
+		if (depth < SOIL_DEPTH && surface == DIG_DIRT) {
+			return "minecraft:dirt";
+		}
+		if (depth < SANDSTONE_DEPTH && surface == DIG_SAND) {
+			return "minecraft:sandstone";
+		}
+		return null;
+	}
+
+	/**
+	 * The block a cell of natural rock is, without Minecraft's own underground (VanillaUnderground's fallback: its level
+	 * missing).
 	 *
 	 * @param surface the Proto.DIG_* material of the ground it was dug down from (dirt and sand go on under it)
 	 * @param depth blocks from the cell up to the surface over it (Half-Life's first triangle), Double.POSITIVE_INFINITY
@@ -52,14 +73,9 @@ public final class Underground {
 		if (depth >= CAVE_MIN_DEPTH && cave(seed, x, y, z)) {
 			return AIR;
 		}
-		if (depth < SAND_DEPTH && surface == DIG_SAND) {
-			return "minecraft:sand";
-		}
-		if (depth < SOIL_DEPTH && surface == DIG_DIRT) {
-			return "minecraft:dirt";
-		}
-		if (depth < SANDSTONE_DEPTH && surface == DIG_SAND) {
-			return "minecraft:sandstone";
+		String soil = soilAt(surface, depth);
+		if (soil != null) {
+			return soil;
 		}
 		boolean deep = y < -SHIFT;
 		if (depth >= 1.0) {
