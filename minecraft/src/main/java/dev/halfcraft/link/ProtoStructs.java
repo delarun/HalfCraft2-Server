@@ -38,6 +38,7 @@ public final class ProtoStructs {
 		public int coopMode; // CoopMode
 		public int coopIp; // COOP_GUEST: the host's IPv4 address, a.b.c.d as a << 24 | b << 16 | c << 8 | d
 		public int coopPort; // COOP_HOST: the TCP port its Minecraft opens its world to LAN on; COOP_GUEST: the port of the host's world it joins (0: not open yet)
+		public int sourceUserId; // on a halfcraft server (COOP_GUEST): this player's Source userid, which names them to the server (players.toml); 0 otherwise
 
 		public void read(MemorySegment s, long at) {
 			this.flags = s.get(JAVA_INT, at + HS_FLAGS);
@@ -58,6 +59,7 @@ public final class ProtoStructs {
 			this.coopMode = s.get(JAVA_INT, at + HS_COOP_MODE);
 			this.coopIp = s.get(JAVA_INT, at + HS_COOP_IP);
 			this.coopPort = s.get(JAVA_INT, at + HS_COOP_PORT);
+			this.sourceUserId = s.get(JAVA_INT, at + HS_SOURCE_USER_ID);
 		}
 
 		public void write(MemorySegment s, long at) {
@@ -80,7 +82,7 @@ public final class ProtoStructs {
 			s.set(JAVA_INT, at + HS_COOP_MODE, this.coopMode);
 			s.set(JAVA_INT, at + HS_COOP_IP, this.coopIp);
 			s.set(JAVA_INT, at + HS_COOP_PORT, this.coopPort);
-			s.asSlice(at + 0x5C, 4).fill((byte) 0); // coopPad
+			s.set(JAVA_INT, at + HS_SOURCE_USER_ID, this.sourceUserId);
 		}
 
 		public void copyFrom(HostState other) {
@@ -102,6 +104,7 @@ public final class ProtoStructs {
 			this.coopMode = other.coopMode;
 			this.coopIp = other.coopIp;
 			this.coopPort = other.coopPort;
+			this.sourceUserId = other.sourceUserId;
 		}
 	}
 

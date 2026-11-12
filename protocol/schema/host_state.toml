@@ -63,7 +63,7 @@ overlayPad = "u32"
 coopMode = { type = "u32", doc = "CoopMode" }
 coopIp = { type = "u32", doc = "kCoopGuest: the host's IPv4 address, a.b.c.d as a << 24 | b << 16 | c << 8 | d" }
 coopPort = { type = "u32", doc = "kCoopHost: the TCP port its Minecraft opens its world to LAN on; kCoopGuest: the port of the host's world it joins (0: not open yet)" }
-coopPad = "u32"
+sourceUserId = { type = "u32", doc = "on a halfcraft server (kCoopGuest): this player's Source userid, which names them to the server (players.toml); 0 otherwise" }
 
 [structs.WaterGrid]
 seqlock = true

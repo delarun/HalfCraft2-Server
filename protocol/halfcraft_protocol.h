@@ -9,7 +9,7 @@ namespace halfcraft::proto
 {
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	inline constexpr std::uint32_t kLayout = 0xE8A07A2F;
+	inline constexpr std::uint32_t kLayout = 0xC9293CF1;
 
 	// ---- where each part of the mapping is ----------------------------------------------------------
 	inline constexpr std::uint64_t kOffHeader = 0x00;
@@ -33,6 +33,8 @@ namespace halfcraft::proto
 	inline constexpr std::uint64_t kOffWaterProbes = 0x29000;    // seqlocks: Minecraft writes the requests, client.dll the answers
 	inline constexpr std::uint64_t kWaterProbesBytes = 0x1000;
 	// 0x2A000-0x30FFF: kept for the world group (C)
+	inline constexpr std::uint64_t kOffPlayerVitals = 0x3C000;       // MC -> host (a server link only), seqlock
+	inline constexpr std::uint64_t kPlayerVitalsBytes = 0x1000;
 	inline constexpr std::uint64_t kOffCollisionRing = 0x40000;      // host -> MC, a byte ring
 	inline constexpr std::uint64_t kCollisionRingBytes = 0x2000000;  // 32 << 20
 	inline constexpr std::uint64_t kOffOverlayPixels = 0x2040000;    // MC -> host: the slots' RGBA8 pixels
@@ -117,10 +119,10 @@ namespace halfcraft::proto
 		// was given divided alike, and the host scales it back up pixel for pixel. 0 (an older host): 1
 		std::uint32_t overlayDivisor;
 		std::uint32_t overlayPad;
-		std::uint32_t coopMode;  // CoopMode
-		std::uint32_t coopIp;    // kCoopGuest: the host's IPv4 address, a.b.c.d as a << 24 | b << 16 | c << 8 | d
-		std::uint32_t coopPort;  // kCoopHost: the TCP port its Minecraft opens its world to LAN on; kCoopGuest: the port of the host's world it joins (0: not open yet)
-		std::uint32_t coopPad;
+		std::uint32_t coopMode;      // CoopMode
+		std::uint32_t coopIp;        // kCoopGuest: the host's IPv4 address, a.b.c.d as a << 24 | b << 16 | c << 8 | d
+		std::uint32_t coopPort;      // kCoopHost: the TCP port its Minecraft opens its world to LAN on; kCoopGuest: the port of the host's world it joins (0: not open yet)
+		std::uint32_t sourceUserId;  // on a halfcraft server (kCoopGuest): this player's Source userid, which names them to the server (players.toml); 0 otherwise
 	};
 	static_assert(sizeof(HostState) == 0x60);
 
@@ -313,6 +315,9 @@ namespace halfcraft::proto
 		// where the next kInHurt came from, for Minecraft's shield: a/b/c = Minecraft x/y/z (float bits)
 		// of the blast's centre or of what dealt it; only that one kInHurt uses it
 		kInHurtFrom = 24,
+		// on a server link: the next kInHurt, kInHurtFrom or kInHeal is for the player whose Source userid is a (the
+		// HalfCraft server's Minecraft applies it to them); single player never sends it
+		kInFor = 25,
 		// 26-27: kept for the world group (C)
 	};
 
@@ -745,6 +750,39 @@ namespace halfcraft::proto
 		WaterProbe    probes[kMaxWaterProbes];
 	};
 	static_assert(sizeof(WaterProbes) == 0xCD0);
+
+	// ---- players @0x3C000 ---------------------------------------------------------------------------
+	// The HalfCraft server's players (docs/server/PLAN.md): its Minecraft keeps their health, and a Source dedicated server's
+	// server.so mirrors it onto each one's Source player, as a single player's server.dll mirrors McState's. A player is
+	// named by their Source userid, which their client.dll writes into HostState and their Minecraft tells the server
+	// (halfcraft:source_player). Single player never writes it.
+	inline constexpr std::uint32_t kMaxServerPlayers = 32;  // records in the table: more than a server's slots
+
+	enum PlayerVitalsFlags : std::uint32_t
+	{
+		kVitalsInWorld = 1u << 0,  // the player is in Minecraft's world, alive or dead
+		kVitalsDead = 1u << 1,     // Minecraft's player is dead
+	};
+
+	struct PlayerVitalsRecord
+	{
+		std::uint32_t userId;      // the player's Source userid
+		std::uint32_t flags;       // PlayerVitalsFlags
+		float         health;      // Minecraft health (20 = full)
+		float         maxHealth;
+		float         absorption;  // Minecraft absorption, which the host shows as armor
+		std::uint32_t pad;
+	};
+	static_assert(sizeof(PlayerVitalsRecord) == 0x18);
+
+	struct PlayerVitalsTable
+	{
+		std::uint32_t      seq;
+		std::uint32_t      count;
+		std::uint8_t       pad[0x10 - 8];
+		PlayerVitalsRecord players[kMaxServerPlayers];
+	};
+	static_assert(sizeof(PlayerVitalsTable) == 0x310);
 
 	// ---- collision ring @0x40000 --------------------------------------------------------------------
 	// The host produces, MC consumes. Byte ring. Every message starts 8-byte aligned with {u32 type, u32 payloadBytes}.

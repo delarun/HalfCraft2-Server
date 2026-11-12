@@ -6,9 +6,11 @@
 #include "tier0/valve_minmax_off.h"
 #include <algorithm>
 #include <cmath>
+#include <unordered_set>
 
 #include "core/hc_log.h"
 #include "core/hc_module.h"
+#include "server/hc_players.h"
 #include "server/hc_vitals.h"
 #include "shared/hc_bridge.h"
 
@@ -24,10 +26,16 @@ namespace halfcraft
 		constexpr float PENDING_SECONDS = 1.0f;       // healing minecraft hasn't shown by then was refused (full already)
 		constexpr int   DROWN_DEBT_RESET = 1 << 30;   // CBasePlayer::AdjustDrownDmg clamps the count to what it gave back already
 
-		bool g_minecraft_owns_health = false;
+		bool                    g_minecraft_owns_health = false;
+		Link*                   g_dedicated_link = nullptr;
+		std::unordered_set<int> g_owned;  // a dedicated server's players whose health minecraft owns, by userid
 
-		void push_heal(int kind, float amount)
+		void push_heal(CBasePlayer* player, int kind, float amount)
 		{
+			if (g_dedicated_link) {
+				send_player_input(player, proto::kInHeal, kind, static_cast<int>(amount * 100.0f));
+				return;
+			}
 			static PushHealFn push = nullptr;
 			if (!push) {
 				push = reinterpret_cast<PushHealFn>(find_export("client.dll", HC_PUSH_HEAL_EXPORT));
@@ -39,12 +47,85 @@ namespace halfcraft
 		}
 	}
 
-	int Vitals::Mirror::update(int current, float minecraft, int kind, float frametime)
+	void set_dedicated_link(Link* link)
+	{
+		g_dedicated_link = link;
+	}
+
+	Link* dedicated_link()
+	{
+		return g_dedicated_link;
+	}
+
+	void send_player_input(CBasePlayer* player, proto::InputType type, int code, int a, int b, int c)
+	{
+		if (g_dedicated_link) {
+			if (player) {
+				g_dedicated_link->push_input(proto::kInFor, 0, player->GetUserID());
+				g_dedicated_link->push_input(type, static_cast<std::uint16_t>(code), a, b, c);
+			}
+			return;
+		}
+		static PushInputFn push = nullptr;
+		if (!push) {
+			push = reinterpret_cast<PushInputFn>(find_export("client.dll", HC_PUSH_INPUT_EXPORT));
+			if (!push) {
+				return;
+			}
+		}
+		push(type, code, a, b, c);
+	}
+
+	bool minecraft_owns_health(CBasePlayer* player)
+	{
+		if (!g_dedicated_link) {
+			return g_minecraft_owns_health;
+		}
+		return player && g_owned.count(player->GetUserID()) > 0;
+	}
+
+	void Vitals::update_players(Link& link)
+	{
+		proto::PlayerVitalsTable table{};
+		const bool               read = link.mc_alive() && link.read_player_vitals(table);
+		g_owned.clear();
+		const float frametime = gpGlobals->frametime;
+		for_each_player([&](CBasePlayer& player) {
+			const int userid = player.GetUserID();
+			if (!read || !player.IsAlive()) {
+				players_.erase(userid);
+				return;
+			}
+			const proto::PlayerVitalsRecord* mc = nullptr;
+			for (std::uint32_t i = 0; i < std::min<std::uint32_t>(table.count, proto::kMaxServerPlayers); ++i) {
+				if (static_cast<int>(table.players[i].userId) == userid) {
+					mc = &table.players[i];
+				}
+			}
+			if (!mc || !(mc->flags & proto::kVitalsInWorld) || (mc->flags & proto::kVitalsDead) || mc->maxHealth <= 0.0f) {
+				players_.erase(userid);
+				return;
+			}
+			g_owned.insert(userid);
+			auto& [health_mirror, armor_mirror] = players_[userid];
+			player.AdjustDrownDmg(-DROWN_DEBT_RESET);
+			const int max_health = static_cast<int>(std::lround(mc->maxHealth * SOURCE_PER_MINECRAFT));
+			const int health = std::clamp(health_mirror.update(&player, player.GetHealth(), mc->health, proto::kHealHealth, frametime), 1, max_health);
+			player.SetMaxHealth(max_health);
+			player.SetHealth(health);
+			health_mirror.set = health;
+			const int armor = std::clamp(armor_mirror.update(&player, player.ArmorValue(), mc->absorption, proto::kHealArmor, frametime), 0, MAX_ARMOR);
+			player.SetArmorValue(armor);
+			armor_mirror.set = armor;
+		});
+	}
+
+	int Vitals::Mirror::update(CBasePlayer* player, int current, float minecraft, int kind, float frametime)
 	{
 		// half-life added some since the last frame (a kit, a charger tick, a battery, a medic)
 		if (set >= 0 && current > set) {
 			const float gain = static_cast<float>(current - set);
-			push_heal(kind, gain);
+			push_heal(player, kind, gain);
 			pending += gain;
 			waited = 0.0f;
 		}
@@ -83,12 +164,12 @@ namespace halfcraft
 		player->AdjustDrownDmg(-DROWN_DEBT_RESET);
 		const float frametime = gpGlobals->frametime;
 		const int   max_health = static_cast<int>(std::lround(mc.maxHealth * SOURCE_PER_MINECRAFT));
-		const int   health = std::clamp(health_.update(player->GetHealth(), mc.health, proto::kHealHealth, frametime), 1, max_health);
+		const int   health = std::clamp(health_.update(player, player->GetHealth(), mc.health, proto::kHealHealth, frametime), 1, max_health);
 		player->SetMaxHealth(max_health);
 		player->SetHealth(health);
 		health_.set = health;
 
-		const int armor = std::clamp(armor_.update(player->ArmorValue(), mc.absorption, proto::kHealArmor, frametime), 0, MAX_ARMOR);
+		const int armor = std::clamp(armor_.update(player, player->ArmorValue(), mc.absorption, proto::kHealArmor, frametime), 0, MAX_ARMOR);
 		player->SetArmorValue(armor);
 		armor_.set = armor;
 	}

@@ -595,6 +595,11 @@ namespace halfcraft
 		return false;
 	}
 
+	bool Link::read_player_vitals(proto::PlayerVitalsTable& out) const
+	{
+		return maps(proto::kOffPlayerVitals + sizeof(proto::PlayerVitalsTable)) && seqlock_read(at<proto::PlayerVitalsTable>(proto::kOffPlayerVitals), out, 64);
+	}
+
 	bool Link::read_mobs(proto::MobTable& out) const
 	{
 		if (!base_) {

@@ -158,16 +158,20 @@ namespace halfcraft
 		/// proto::kInHurtFrom, ahead of the hurt itself (both go through client.dll's queue, in order).
 		void push_hurt_from(CBasePlayer* player, const CTakeDamageInfo& info)
 		{
-			const PushInputFn push_input = client_push_input();
+			const PushInputFn push_input = dedicated_link() ? nullptr : client_push_input();
 			Vector            origin;
-			if (!push_input || !hurt_origin(player, info, origin)) {
+			if ((!push_input && !dedicated_link()) || !hurt_origin(player, info, origin)) {
 				return;
 			}
 			const auto   mc = source_to_mc(origin.Base(), g_slot);
 			const float  at[3] = { static_cast<float>(mc.x), static_cast<float>(mc.y), static_cast<float>(mc.z) };
 			std::int32_t bits[3];
 			std::memcpy(bits, at, sizeof(bits));
-			push_input(proto::kInHurtFrom, 0, bits[0], bits[1], bits[2]);
+			if (dedicated_link()) {
+				send_player_input(player, proto::kInHurtFrom, 0, bits[0], bits[1], bits[2]);  // the halfcraft server's
+			} else {
+				push_input(proto::kInHurtFrom, 0, bits[0], bits[1], bits[2]);
+			}
 		}
 	}
 
@@ -309,8 +313,19 @@ namespace halfcraft
 			case proto::kEvCollisionLost:
 				collision_lost_ = true;
 				break;
+			case proto::kEvPlayerDied:
+				// a player's minecraft player died: so do they (flags: their source userid)
+				for (CBasePlayer* player : players) {
+					if (player->GetUserID() == static_cast<int>(event.flags) && player->IsAlive()) {
+						log_info("player %d's minecraft player died: so do they", player->GetUserID());
+						g_killing_player = true;
+						player->TakeDamage(CTakeDamageInfo(GetWorldEntity(), GetWorldEntity(), player->GetHealth() + 100.0f, DMG_GENERIC));
+						g_killing_player = false;
+					}
+				}
+				break;
 			default:
-				break;  // a player's death, explosions, the gravity gun's blocks: per player, later (S2)
+				break;  // explosions, the gravity gun's blocks: later
 			}
 		}
 	}
@@ -555,12 +570,12 @@ namespace halfcraft
 	{
 		if (hc_debug_hurt.GetBool()) {
 			log_info("hit on the player: %.1f (damage type 0x%x) from %s; minecraft owns health: %d", info.GetDamage(), info.GetDamageType(),
-				info.GetAttacker() ? info.GetAttacker()->GetClassname() : "nobody", minecraft_owns_health() ? 1 : 0);
+				info.GetAttacker() ? info.GetAttacker()->GetClassname() : "nobody", minecraft_owns_health(player) ? 1 : 0);
 		}
 		if (minecraft_blast_running()) {
 			return true;  // minecraft's own explosion, reaching the player through a vehicle: minecraft hurt them already
 		}
-		if (g_killing_player || !minecraft_owns_health()) {
+		if (g_killing_player || !minecraft_owns_health(player)) {
 			return false;
 		}
 		const int type = info.GetDamageType();
@@ -568,6 +583,17 @@ namespace halfcraft
 		// half-life's own come from the world; a map's pit or deep-water trigger_hurt (d2_coast_05, ...) still lands
 		CBaseEntity* inflictor = info.GetInflictor();
 		if ((type & (DMG_FALL | DMG_DROWN)) && (!inflictor || inflictor->IsWorld())) {
+			return true;
+		}
+		if (dedicated_link()) {
+			// the halfcraft server's minecraft takes the hit, on this player's minecraft player
+			const int           kind = hurt_kind(type);
+			CBaseEntity*        attacker = info.GetAttacker();
+			const std::uint32_t attacker_id = attacker && attacker != player && g_actors.count(actor_id(attacker)) ? actor_id(attacker) : 0;
+			if (info.GetDamage() > 0.0f) {
+				push_hurt_from(player, info);
+				send_player_input(player, proto::kInHurt, kind, static_cast<int>(info.GetDamage() * 100.0f), static_cast<int>(attacker_id), 0);
+			}
 			return true;
 		}
 		static PushHurtFn push = nullptr;

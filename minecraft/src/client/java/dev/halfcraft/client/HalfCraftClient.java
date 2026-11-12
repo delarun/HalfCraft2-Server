@@ -9,6 +9,8 @@ import net.minecraft.client.renderer.entity.NoopRenderer;
 public final class HalfCraftClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
+		// on the halfcraft server: which source player this minecraft is
+		ServerIdentity.init();
 		dev.halfcraft.link.HostLink.announceRunning();
 		HostCommands.register();
 

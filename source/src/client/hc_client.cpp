@@ -467,6 +467,11 @@ namespace halfcraft
 					host.coopMode = proto::kCoopGuest;
 					host.coopIp = *ip;
 					host.coopPort = static_cast<std::uint32_t>(port);
+					// the server knows this player by their userid: their minecraft tells its server which one it is
+					player_info_t info{};
+					if (engine->GetPlayerInfo(engine->GetLocalPlayer(), &info)) {
+						host.sourceUserId = static_cast<std::uint32_t>(info.userID);
+					}
 				}
 			}
 			s.link.write_host_state(host);

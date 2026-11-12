@@ -5,11 +5,14 @@
 #include "player.h"
 
 #include "tier0/valve_minmax_off.h"
+#include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <utility>
 #include <vector>
 
 #include "core/hc_collision.h"
+#include "core/hc_link.h"
 #include "core/hc_log.h"
 #include "core/hc_module.h"
 #include "core/hc_units.h"
@@ -44,10 +47,40 @@ namespace halfcraft
 		outlined_ = false;
 	}
 
-	void DigState::update(CollisionStreamer* streamer)
+	void DigState::update(CollisionStreamer* streamer, Link* server_link)
 	{
-		take_changes(streamer);
+		if (server_link) {
+			take_messages(*server_link, streamer);
+		} else {
+			take_changes(streamer);
+		}
 		outline();
+	}
+
+	void DigState::take_messages(Link& link, CollisionStreamer* streamer)
+	{
+		changes_.clear();
+		link.drain_render(
+			[&](std::uint32_t type, const std::uint8_t* payload, std::uint32_t bytes) {
+				if (type != proto::kRenDug || bytes < sizeof(proto::RenDug)) {
+					return;
+				}
+				proto::RenDug header;
+				std::memcpy(&header, payload, sizeof(header));
+				DugSection section{};
+				section.sx = header.sx;
+				section.sy = header.sy;
+				section.sz = header.sz;
+				if (header.count > 0 && sizeof(header) + sizeof(section.bits) <= bytes) {
+					section.count = header.count;
+					std::memcpy(section.bits, payload + sizeof(header), sizeof(section.bits));
+				}
+				changes_.push_back(section);
+			},
+			1u << 20);
+		if (!changes_.empty()) {
+			apply_changes(static_cast<int>(changes_.size()), streamer);
+		}
 	}
 
 	void DigState::take_changes(CollisionStreamer* streamer)
@@ -67,9 +100,14 @@ namespace halfcraft
 		changes_.resize(static_cast<std::size_t>(changed));
 		const int copied = dug_since_(version_, changes_.data(), changed, &now);
 		version_ = now;
+		apply_changes(std::min(copied, changed), streamer);
+	}
+
+	void DigState::apply_changes(int copied, CollisionStreamer* streamer)
+	{
 		changed_.clear();
 		const float centre = static_cast<float>(slot_.x_blocks());
-		for (int i = 0; i < copied && i < changed; ++i) {
+		for (int i = 0; i < copied; ++i) {
 			const DugSection& section = changes_[static_cast<std::size_t>(i)];
 			// a section another map's slot has (minecraft keeps them all) has nothing dug in this one
 			const bool this_map = std::fabs(static_cast<float>(section.sx * SECTION_BLOCKS) - centre) <= KEEP_SLOT_BLOCKS;

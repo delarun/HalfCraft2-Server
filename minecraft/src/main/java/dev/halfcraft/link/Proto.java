@@ -10,7 +10,7 @@ public final class Proto {
 
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	public static final int LAYOUT = 0xE8A07A2F;
+	public static final int LAYOUT = 0xC9293CF1;
 
 	// ---- where each part of the mapping is
 	public static final long OFF_HEADER = 0x00;
@@ -34,6 +34,8 @@ public final class Proto {
 	public static final long OFF_WATER_PROBES = 0x29000; // seqlocks: Minecraft writes the requests, client.dll the answers
 	public static final long WATER_PROBES_BYTES = 0x1000;
 	// 0x2A000-0x30FFF: kept for the world group (C)
+	public static final long OFF_PLAYER_VITALS = 0x3C000; // MC -> host (a server link only), seqlock
+	public static final long PLAYER_VITALS_BYTES = 0x1000;
 	public static final long OFF_COLLISION_RING = 0x40000; // host -> MC, a byte ring
 	public static final long COLLISION_RING_BYTES = 0x2000000; // 32 << 20
 	public static final long OFF_OVERLAY_PIXELS = 0x2040000; // MC -> host: the slots' RGBA8 pixels
@@ -116,6 +118,7 @@ public final class Proto {
 	public static final long HS_COOP_MODE = 0x50; // CoopMode
 	public static final long HS_COOP_IP = 0x54; // COOP_GUEST: the host's IPv4 address, a.b.c.d as a << 24 | b << 16 | c << 8 | d
 	public static final long HS_COOP_PORT = 0x58; // COOP_HOST: the TCP port its Minecraft opens its world to LAN on; COOP_GUEST: the port of the host's world it joins (0: not open yet)
+	public static final long HS_SOURCE_USER_ID = 0x5C; // on a halfcraft server (COOP_GUEST): this player's Source userid, which names them to the server (players.toml); 0 otherwise
 	public static final int HS_BYTES = 0x60;
 
 	// WaterGrid: offsets in it (in OFF_WATER_GRID)
@@ -299,6 +302,9 @@ public final class Proto {
 	// where the next IN_HURT came from, for Minecraft's shield: a/b/c = Minecraft x/y/z (float bits)
 	// of the blast's centre or of what dealt it; only that one IN_HURT uses it
 	public static final int IN_HURT_FROM = 24;
+	// on a server link: the next IN_HURT, IN_HURT_FROM or IN_HEAL is for the player whose Source userid is a (the
+	// HalfCraft server's Minecraft applies it to them); single player never sends it
+	public static final int IN_FOR = 25;
 	// 26-27: kept for the world group (C)
 
 	// MapEntry
@@ -675,6 +681,31 @@ public final class Proto {
 	public static final long WP_COUNT = 0x04;
 	public static final long WP_PROBES = 0x10;
 	public static final int WP_BYTES = 0xCD0;
+
+	// ---- players @0x3C000 ---------------------------------------------------------------------------
+	// The HalfCraft server's players (docs/server/PLAN.md): its Minecraft keeps their health, and a Source dedicated server's
+	// server.so mirrors it onto each one's Source player, as a single player's server.dll mirrors McState's. A player is
+	// named by their Source userid, which their client.dll writes into HostState and their Minecraft tells the server
+	// (halfcraft:source_player). Single player never writes it.
+	public static final int MAX_SERVER_PLAYERS = 32; // records in the table: more than a server's slots
+
+	// PlayerVitalsFlags
+	public static final int PV_IN_WORLD = 1 << 0; // the player is in Minecraft's world, alive or dead
+	public static final int PV_DEAD = 1 << 1; // Minecraft's player is dead
+
+	// PlayerVitalsRecord: offsets in it
+	public static final long PV_R_USER_ID = 0x00; // the player's Source userid
+	public static final long PV_R_FLAGS = 0x04; // PlayerVitalsFlags
+	public static final long PV_R_HEALTH = 0x08; // Minecraft health (20 = full)
+	public static final long PV_R_MAX_HEALTH = 0x0C;
+	public static final long PV_R_ABSORPTION = 0x10; // Minecraft absorption, which the host shows as armor
+	public static final int PV_RECORD_BYTES = 0x18;
+
+	// PlayerVitalsTable: offsets in it (in OFF_PLAYER_VITALS)
+	public static final long PV_SEQ = 0x00;
+	public static final long PV_COUNT = 0x04;
+	public static final long PV_RECORDS = 0x10;
+	public static final int PV_BYTES = 0x310;
 
 	// ---- collision ring @0x40000 --------------------------------------------------------------------
 	// The host produces, MC consumes. Byte ring. Every message starts 8-byte aligned with {u32 type, u32 payloadBytes}.

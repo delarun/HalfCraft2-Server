@@ -28,6 +28,16 @@ public abstract class ServerPlayerMixin {
 	@Inject(method = "die", at = @At("HEAD"))
 	private void halfcraft$diesInHost(DamageSource source, CallbackInfo ci) {
 		ServerPlayer self = (ServerPlayer) (Object) this;
+		dev.halfcraft.link.ServerLink server = dev.halfcraft.link.HostSide.dedicated();
+		if (server != null) {
+			// the halfcraft server's player: their source player dies too (flags: their userid)
+			int userId = dev.halfcraft.link.ServerPlayers.userId(self);
+			if (userId > 0) {
+				server.pushEvent(Proto.EV_PLAYER_DIED, HostCombat.attackerActorId(source), 0, 0, 0, 0, userId, 0, 0);
+				HalfCraft.LOG.info("HalfCraft: {} (source player {}) died ({}); telling the source server", self.getName().getString(), userId, source.getMsgId());
+			}
+			return;
+		}
 		if (!HostPlayers.isHost(self)) {
 			HalfCraft.LOG.info("HalfCraft: {} died in Minecraft (a guest: Half-Life isn't told)", self.getName().getString());
 			return;

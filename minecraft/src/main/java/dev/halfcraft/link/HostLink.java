@@ -317,7 +317,11 @@ public final class HostLink {
 
 	/** Drains every pending input event. Render thread only. */
 	public static void drainInput(InputSink sink) {
-		MemorySegment s = shm;
+		drainInput(shm, sink);
+	}
+
+	/** Drains a mapping's input ring (this link's, or a server link's on the HalfCraft server). One consumer. */
+	static void drainInput(MemorySegment s, InputSink sink) {
 		if (s == null) {
 			return;
 		}
@@ -456,7 +460,11 @@ public final class HostLink {
 	}
 
 	private static synchronized boolean writeRender(int type, java.nio.ByteBuffer header, java.nio.ByteBuffer body, int attempts) {
-		MemorySegment s = shm;
+		return writeRender(shm, type, header, body, attempts);
+	}
+
+	/** One render message into a mapping's render ring (this link's, or a server link's): single producer per ring. */
+	static boolean writeRender(MemorySegment s, int type, java.nio.ByteBuffer header, java.nio.ByteBuffer body, int attempts) {
 		if (s == null) {
 			return false;
 		}

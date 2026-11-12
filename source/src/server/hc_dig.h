@@ -16,6 +16,8 @@
 
 namespace halfcraft
 {
+	class Link;
+
 	class CollisionStreamer;
 
 	/// the dug cells of the current map. main thread, all of it.
@@ -27,7 +29,9 @@ namespace halfcraft
 		/// once per frame: picks up what changed in client.dll, sends the regions around each cell that changed again,
 		/// and outlines the cells for hc_debug_dig.
 		/// @param streamer - nullptr: nothing to send again
-		void update(CollisionStreamer* streamer);
+		/// @param server_link - a dedicated server's link: the halfcraft server's minecraft writes the dug sections into
+		///                      its render ring (kRenDug); nullptr: client.dll hands them over (HalfCraft_DugSince)
+		void update(CollisionStreamer* streamer, Link* server_link = nullptr);
 		/// @param x, y, z - a minecraft block
 		bool dug(int x, int y, int z) const;
 		/// the dug cells a minecraft box reaches into, merged into boxes (core/hc_dig_clip.h's merge_cells)
@@ -45,6 +49,10 @@ namespace halfcraft
 
 	private:
 		void take_changes(CollisionStreamer* streamer);
+		/// a dedicated server's: the dug sections the halfcraft server's minecraft wrote into the link's render ring
+		void take_messages(Link& link, CollisionStreamer* streamer);
+		/// the sections in changes_ (count of them) into the cells, and the regions around each changed cell out again
+		void apply_changes(int count, CollisionStreamer* streamer);
 		void outline();
 
 		DugSinceFn                  dug_since_ = nullptr;

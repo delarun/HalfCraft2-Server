@@ -1,0 +1,45 @@
+title = "players"
+doc = """
+The HalfCraft server's players (docs/server/PLAN.md): its Minecraft keeps their health, and a Source dedicated server's
+server.so mirrors it onto each one's Source player, as a single player's server.dll mirrors McState's. A player is
+named by their Source userid, which their client.dll writes into HostState and their Minecraft tells the server
+(halfcraft:source_player). Single player never writes it."""
+
+[regions.PlayerVitals]
+at = 0x3C000
+bytes = 0x1000
+type = "PlayerVitalsTable"
+doc = "MC -> host (a server link only), seqlock"
+
+[constants]
+kMaxServerPlayers = { type = "u32", value = 32, doc = "records in the table: more than a server's slots" }
+
+[enums.PlayerVitalsFlags]
+type = "u32"
+
+[enums.PlayerVitalsFlags.items]
+kVitalsInWorld = { bit = 0, doc = "the player is in Minecraft's world, alive or dead", java = "PV_IN_WORLD" }
+kVitalsDead = { bit = 1, doc = "Minecraft's player is dead", java = "PV_DEAD" }
+
+[structs.PlayerVitalsRecord]
+size = 24
+java = "PV_R"
+java_size = "PV_RECORD_BYTES"
+
+[structs.PlayerVitalsRecord.fields]
+userId = { type = "u32", doc = "the player's Source userid" }
+flags = { type = "u32", doc = "PlayerVitalsFlags" }
+health = { type = "f32", doc = "Minecraft health (20 = full)" }
+maxHealth = "f32"
+absorption = { type = "f32", doc = "Minecraft absorption, which the host shows as armor" }
+pad = "u32"
+
+[structs.PlayerVitalsTable]
+seqlock = true
+java = "PV"
+
+[structs.PlayerVitalsTable.fields]
+seq = "u32"
+count = "u32"
+pad = "u8[0x10 - 8]"
+players = { type = "PlayerVitalsRecord[kMaxServerPlayers]", java = "PV_RECORDS" }

@@ -30,6 +30,9 @@ public final class HalfCraftServer {
 				link.tick();
 			}
 			CollisionRelay.tick(server);
+			if (!LINKS.isEmpty() && LINKS.getFirst().active()) {
+				dev.halfcraft.link.ServerPlayers.tick(server, LINKS.getFirst());
+			}
 		});
 	}
 

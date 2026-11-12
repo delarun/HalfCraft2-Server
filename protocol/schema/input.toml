@@ -80,6 +80,9 @@ Minecraft blocks per second * 1000 along x/y/z, which the player takes as moment
 kInHurtFrom = { value = 24, doc = """
 where the next kInHurt came from, for Minecraft's shield: a/b/c = Minecraft x/y/z (float bits)
 of the blast's centre or of what dealt it; only that one kInHurt uses it""" }
+kInFor = { value = 25, doc = """
+on a server link: the next kInHurt, kInHurtFrom or kInHeal is for the player whose Source userid is a (the
+HalfCraft server's Minecraft applies it to them); single player never sends it""" }
 
 [enums.MapEntry]
 type = "u16"

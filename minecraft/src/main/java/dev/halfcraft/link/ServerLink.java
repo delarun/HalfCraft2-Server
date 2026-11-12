@@ -89,6 +89,53 @@ public final class ServerLink implements CollisionSource {
 		return s != null && SYSTEM.tickCount() - (long) LONG.getAcquire(s, OFF_HEADER + H_HOST_HEARTBEAT) < HEARTBEAT_TIMEOUT_MS;
 	}
 
+	/**
+	 * A render message for server.so (the HalfCraft server's dug cells, kRenDug): on a server link nothing else uses
+	 * the render ring, which server.so drains on a dedicated server as client.dll does on a player's machine.
+	 */
+	public synchronized boolean writeRender(int type, java.nio.ByteBuffer header, java.nio.@Nullable ByteBuffer body) {
+		return HostLink.writeRender(this.shm, type, header, body, 1);
+	}
+
+	/** server.so's session: a new one each time a source server sets the link up (0 before it's open). */
+	public long session() {
+		return this.hostSession;
+	}
+
+	/** Drains server.so's input ring: hurts and heals for the server's players (kInFor names which). Server thread. */
+	public void drainInput(HostLink.InputSink sink) {
+		HostLink.drainInput(this.shm, sink);
+	}
+
+	/** One player's Minecraft health for server.so (PlayerVitals). */
+	public record Vitals(int userId, int flags, float health, float maxHealth, float absorption) {
+	}
+
+	/** Seqlock write of the players' Minecraft health, which server.so mirrors onto their Source players. Server thread. */
+	public void writePlayerVitals(java.util.List<Vitals> players) {
+		MemorySegment s = this.shm;
+		if (s == null) {
+			return;
+		}
+		long b = OFF_PLAYER_VITALS;
+		int seq = s.get(JAVA_INT, b + PV_SEQ);
+		s.set(JAVA_INT, b + PV_SEQ, seq + 1);
+		VarHandle.storeStoreFence();
+		int count = Math.min(players.size(), MAX_SERVER_PLAYERS);
+		s.set(JAVA_INT, b + PV_COUNT, count);
+		for (int i = 0; i < count; i++) {
+			Vitals v = players.get(i);
+			long r = b + PV_RECORDS + (long) i * PV_RECORD_BYTES;
+			s.set(JAVA_INT, r + PV_R_USER_ID, v.userId());
+			s.set(JAVA_INT, r + PV_R_FLAGS, v.flags());
+			s.set(JAVA_FLOAT, r + PV_R_HEALTH, v.health());
+			s.set(JAVA_FLOAT, r + PV_R_MAX_HEALTH, v.maxHealth());
+			s.set(JAVA_FLOAT, r + PV_R_ABSORPTION, v.absorption());
+		}
+		VarHandle.releaseFence();
+		s.set(JAVA_INT, b + PV_SEQ, seq + 2);
+	}
+
 	/** Seqlock read of server.so's actor table: the npcs and breakables near its players. */
 	public boolean readActors(java.util.List<ProtoStructs.ActorRecord> out) {
 		return HostLink.readActors(this.shm, out);

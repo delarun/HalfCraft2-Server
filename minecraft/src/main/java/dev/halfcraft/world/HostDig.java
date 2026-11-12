@@ -145,6 +145,7 @@ public final class HostDig {
 		}
 		LevelChunk chunk = level.getChunkAt(pos);
 		chunk.setAttached(DUG, column(chunk).with(pos.getX(), pos.getY(), pos.getZ()));
+		ServerDug.changed(chunk, pos);
 		BlockState state = stateFor(material);
 		if (!player.isCreative()) {
 			ItemStack tool = player.getMainHandItem();
@@ -240,6 +241,7 @@ public final class HostDig {
 			BlockPos cell = new BlockPos(r.x(), r.y(), r.z());
 			LevelChunk chunk = level.getChunkAt(cell);
 			chunk.setAttached(DUG, column(chunk).with(r.x(), r.y(), r.z()));
+			ServerDug.changed(chunk, cell);
 			BlockState state = stateFor(r.material());
 			Rollback.untracked(() -> {
 				level.setBlock(cell, state, Block.UPDATE_ALL);

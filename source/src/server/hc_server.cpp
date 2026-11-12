@@ -83,6 +83,7 @@ namespace halfcraft
 				const auto  link = process_link_names(parameter);
 				dedicated_ = engine->IsDedicatedServer();
 				link_ready_ = link && (dedicated_ ? link_.create(*link) : link_.attach(*link));
+				set_dedicated_link(dedicated_ && link_ready_ ? &link_ : nullptr);
 				if (link_ready_) {
 					streamer_ = std::make_unique<CollisionStreamer>(link_);
 				}
@@ -200,7 +201,7 @@ namespace halfcraft
 				return;
 			}
 			solids_.update();  // minecraft's blocks stop npcs, props and bullets
-			dig_.update(streamer_.get());  // and the cells it dug come out of the collision it gets
+			dig_.update(streamer_.get(), dedicated_ ? &link_ : nullptr);  // and the cells it dug come out of the collision it gets
 
 			CBasePlayer* player = UTIL_GetLocalPlayer();
 			const bool   puppeted = player && server_player_puppeted();
@@ -224,7 +225,11 @@ namespace halfcraft
 			held_blocks_.update();  // the gravity gun's blocks land where they come to rest
 			push_.update(player, puppeted && link_.mc_alive());
 			mobs_.update(link_, slot_);
-			vitals_.update(link_, player);
+			if (dedicated_) {
+				vitals_.update_players(link_);  // each player's health is their minecraft's on the halfcraft server
+			} else {
+				vitals_.update(link_, player);
+			}
 			if (link_.mc_alive()) {
 				hazards_.update(player, slot_);
 			}

@@ -103,6 +103,8 @@ namespace halfcraft
 		bool read_world_entities(proto::WorldEntities& out) const;
 		/// minecraft's mobs near its player (seqlock); out.count says how many records were read.
 		bool read_mobs(proto::MobTable& out) const;
+		/// the halfcraft server's players' minecraft health (seqlock; a server link's); out.count says how many.
+		bool read_player_vitals(proto::PlayerVitalsTable& out) const;
 
 		/// render ring, consumer side: calls fn(type, payload, bytes) per pending message, up to
 		/// about max_bytes of payload. payload points into shared memory.
