@@ -345,6 +345,7 @@ namespace halfcraft
 	static_assert(static_cast<int>(DIG_PLANKS) == proto::kDigPlanks);
 	static_assert(static_cast<int>(DIG_DIRT) == proto::kDigDirt);
 	static_assert(static_cast<int>(DIG_GLASS) == proto::kDigGlass);
+	static_assert(static_cast<int>(DIG_SAND) == proto::kDigSand);
 	static_assert(VOID_NONE == proto::kVoidNone);
 	static_assert(VOID_ALL == proto::kVoidAll);
 	static_assert(VOID_SOME == proto::kVoidSome);

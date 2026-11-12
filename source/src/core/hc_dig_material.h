@@ -24,6 +24,7 @@ namespace halfcraft
 		DIG_PLANKS,
 		DIG_DIRT,
 		DIG_GLASS,
+		DIG_SAND,
 	};
 
 	/// what a half-life surface digs as.
@@ -31,7 +32,7 @@ namespace halfcraft
 	///        game/shared/decals.h: 'C' concrete, 'T' tile, 'M' metal, 'G' grate, 'V' vent, 'P' computer, 'W' wood,
 	///        'D' dirt, 'Y' glass; 'U' is cardboard, which decals.h has no name for)
 	/// @return the block's material: concrete is stone, tile stone bricks, metal, grate, vent and computer iron, wood
-	///         and cardboard planks, dirt dirt, glass glass, and everything else (flesh, sand, slosh, no material at
+	///         and cardboard planks, dirt and foliage dirt, sand sand, glass glass, and everything else (flesh, sand, slosh, no material at
 	///         all) stone: a wall's far side is rock
 	inline std::uint8_t dig_material(char game_material)
 	{
@@ -45,6 +46,8 @@ namespace halfcraft
 		case 'U': return DIG_PLANKS;
 		case 'D': return DIG_DIRT;
 		case 'Y': return DIG_GLASS;
+		case 'N': return DIG_SAND;
+		case 'O': return DIG_DIRT;
 		default: return DIG_STONE;
 		}
 	}

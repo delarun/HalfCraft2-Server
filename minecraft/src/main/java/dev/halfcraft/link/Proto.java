@@ -10,7 +10,7 @@ public final class Proto {
 
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	public static final int LAYOUT = 0x207D00AF;
+	public static final int LAYOUT = 0x87EFF987;
 
 	// ---- where each part of the mapping is
 	public static final long OFF_HEADER = 0x00;
@@ -777,7 +777,7 @@ public final class Proto {
 	// ColTriFlags
 	public static final int TRI_STAIR_HELPER = 1 << 0; // an invisible stair ramp: walkable, never a wall
 	public static final int TRI_SKY = 1 << 1; // a brush of the map's sky (its skybox ceiling): what's under it is out in the open
-	public static final int TRI_DIGGABLE = 1 << 2; // a face of a world brush (not the sky's) that Minecraft can dig out
+	public static final int TRI_DIGGABLE = 1 << 2; // a face of a world brush (not the sky's) or of the ground (a displacement) that Minecraft can dig out
 	// bits 8-15: the face's DigMaterial, with TRI_DIGGABLE
 
 	// DigMaterial
@@ -789,6 +789,7 @@ public final class Proto {
 	public static final int DIG_PLANKS = 4; // minecraft:oak_planks: wood (W; U too, which Half-Life 2 doesn't use)
 	public static final int DIG_DIRT = 5; // minecraft:dirt: dirt (D), which Half-Life 2's cardboard and paper surfaces are too
 	public static final int DIG_GLASS = 6; // minecraft:glass: glass (Y)
+	public static final int DIG_SAND = 7; // minecraft:sand: sand (N), the coast's beaches
 
 	// ColBlockFlags
 	public static final int COL_BLOCK_SKY = 1 << 0; // all of it is the map's sky (TRI_SKY): no roof over what's under it

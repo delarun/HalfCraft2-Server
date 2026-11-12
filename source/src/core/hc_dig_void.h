@@ -1,7 +1,8 @@
 #pragma once
 
 // the void behind a map's walls: where minecraft makes rock of what lies outside the map (the kColVoid message), per
-// block and per sub-voxel of a collision region. pure code, no engine and no link, so the streamer's worker thread runs it.
+// block and per sub-voxel of a collision region. and the rock under the ground (core/hc_dig_ground.h): half-life's
+// terrain is a surface, so what lies a few blocks under it is rock for minecraft the same way, solid until dug. pure code, no engine and no link, so the streamer's worker thread runs it.
 //
 // the leaves outside the map are solid in the .bsp's tree (vbsp's FillOutside), as are a brush's insides: the world's
 // brushes and the sky's are told apart by their flags (PRIM_DIGGABLE, PRIM_SKY), so a point is void when its leaf is
@@ -15,6 +16,7 @@
 
 #include "hc_bsp_tree.h"
 #include "hc_collision_shapes.h"
+#include "hc_dig_ground.h"
 #include "hc_units.h"
 
 namespace halfcraft
@@ -92,7 +94,12 @@ namespace halfcraft
 			}
 		}
 
-		const auto is_void = [&](double x, double y, double z) {
+		const GroundColumns ground(origin, prims.ground);
+		const bool          has_ground = !ground.empty();
+		const auto          is_void = [&](double x, double y, double z) {
+			if (has_ground && ground.under(x, y, z)) {
+				return true;
+			}
 			float source[3];
 			mc_to_source(x, y, z, slot, source);
 			if ((point_contents(tree, source) & BSP_CONTENTS_SOLID) == 0) {

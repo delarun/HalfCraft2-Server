@@ -9,7 +9,7 @@ namespace halfcraft::proto
 {
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	inline constexpr std::uint32_t kLayout = 0x207D00AF;
+	inline constexpr std::uint32_t kLayout = 0x87EFF987;
 
 	// ---- where each part of the mapping is ----------------------------------------------------------
 	inline constexpr std::uint64_t kOffHeader = 0x00;
@@ -863,7 +863,7 @@ namespace halfcraft::proto
 	{
 		kTriStairHelper = 1u << 0,  // an invisible stair ramp: walkable, never a wall
 		kTriSky = 1u << 1,          // a brush of the map's sky (its skybox ceiling): what's under it is out in the open
-		kTriDiggable = 1u << 2,     // a face of a world brush (not the sky's) that Minecraft can dig out
+		kTriDiggable = 1u << 2,     // a face of a world brush (not the sky's) or of the ground (a displacement) that Minecraft can dig out
 		// bits 8-15: the face's DigMaterial, with kTriDiggable
 	};
 
@@ -877,6 +877,7 @@ namespace halfcraft::proto
 		kDigPlanks = 4,       // minecraft:oak_planks: wood (W; U too, which Half-Life 2 doesn't use)
 		kDigDirt = 5,         // minecraft:dirt: dirt (D), which Half-Life 2's cardboard and paper surfaces are too
 		kDigGlass = 6,        // minecraft:glass: glass (Y)
+		kDigSand = 7,         // minecraft:sand: sand (N), the coast's beaches
 	};
 
 	enum ColBlockFlags : std::uint32_t

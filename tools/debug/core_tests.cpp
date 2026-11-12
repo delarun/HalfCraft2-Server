@@ -33,6 +33,7 @@
 #include "core/hc_dig_void.h"
 #include "core/hc_dug_cells.h"
 #include "core/hc_link_names.h"
+#include "core/hc_dig_ground.h"
 #include "core/hc_props.h"
 #include "core/hc_sandbox.h"
 
@@ -298,7 +299,8 @@ namespace
 		CHECK(dig_material('Y') == DIG_GLASS);
 		CHECK(dig_material('F') == DIG_STONE);
 		CHECK(dig_material('S') == DIG_STONE);
-		CHECK(dig_material('N') == DIG_STONE);
+		CHECK(dig_material('N') == DIG_SAND);
+		CHECK(dig_material('O') == DIG_DIRT);
 		CHECK(dig_material('Z') == DIG_STONE);
 		CHECK(dig_material('\0') == DIG_STONE);
 		CHECK(dig_flags(DIG_STONE) == 0x104u);
@@ -1557,6 +1559,63 @@ namespace
 		CHECK(!ipv4_of("1234.1.1.1") && !ipv4_of("[::1]:27015"));
 	}
 
+	void test_dig_ground()
+	{
+		using namespace halfcraft;
+		auto area = [](const std::vector<std::array<float, 9>>& tris) {
+			double total = 0.0;
+			for (const auto& t : tris) {
+				const double u[3] = { t[3] - t[0], t[4] - t[1], t[5] - t[2] }, v[3] = { t[6] - t[0], t[7] - t[1], t[8] - t[2] };
+				const double x = u[1] * v[2] - u[2] * v[1], y = u[2] * v[0] - u[0] * v[2], z = u[0] * v[1] - u[1] * v[0];
+				total += 0.5 * std::sqrt(x * x + y * y + z * z);
+			}
+			return total;
+		};
+		// a flat 4x4 square of ground at y 10.5 (two triangles), facing up
+		const float a[9] = { 0, 10.5f, 0, 0, 10.5f, 4, 4, 10.5f, 0 };
+		const float b[9] = { 4, 10.5f, 0, 0, 10.5f, 4, 4, 10.5f, 4 };
+		std::vector<std::array<float, 9>> out;
+		subtract_boxes_from_tri(a, {}, out);
+		subtract_boxes_from_tri(b, {}, out);
+		CHECK(out.size() == 2 && std::fabs(area(out) - 16.0) < 1e-3);
+		// a dug cell through the surface takes a 1x1 hole out of it
+		const std::vector<DigBox> cell{ DigBox{ { 1, 10, 1 }, { 2, 11, 2 } } };
+		out.clear();
+		subtract_boxes_from_tri(a, cell, out);
+		subtract_boxes_from_tri(b, cell, out);
+		CHECK(std::fabs(area(out) - 15.0) < 1e-3);
+		for (const auto& t : out) {
+			const float cx = (t[0] + t[3] + t[6]) / 3.0f, cz = (t[2] + t[5] + t[8]) / 3.0f;
+			CHECK(!(cx > 1.0f && cx < 2.0f && cz > 1.0f && cz < 2.0f));
+		}
+		// a cell under the surface, touching it, leaves it whole; one over it too
+		out.clear();
+		subtract_boxes_from_tri(a, { DigBox{ { 1, 9.5f, 1 }, { 2, 10.5f, 2 } }, DigBox{ { 1, 10.5f, 1 }, { 2, 11.5f, 2 } } }, out);
+		CHECK(std::fabs(area(out) - 8.0) < 1e-3);
+
+		// rock under the ground: at most GROUND_DEPTH under a surface facing up, nothing over it or under a ceiling
+		ColPrimitives::Tri up_a, up_b;
+		std::copy(a, a + 9, up_a.v);
+		std::copy(b, b + 9, up_b.v);
+		const double            origin[3] = { 0, 8, 0 };
+		const GroundColumns     ground(origin, { up_a, up_b });
+		CHECK(ground.under(1.5, 10.0, 1.5));
+		CHECK(ground.under(1.5, 8.1, 1.5));
+		CHECK(!ground.under(1.5, 11.0, 1.5));
+		CHECK(!ground.under(5.5, 9.0, 1.5));  // off the square
+		const double            deep[3] = { 0, 0, 0 };
+		const GroundColumns     far(deep, { up_a, up_b });
+		CHECK(!far.under(1.5, 2.0, 1.5));  // 8.5 blocks down
+		// the same square wound the other way faces down: a ceiling, with air under it
+		ColPrimitives::Tri down_a = up_a;
+		std::swap(down_a.v[3], down_a.v[6]);
+		std::swap(down_a.v[4], down_a.v[7]);
+		std::swap(down_a.v[5], down_a.v[8]);
+		const GroundColumns ceiling(origin, { down_a });
+		CHECK(!ceiling.under(0.5, 10.0, 0.5));
+		CHECK(!ceiling.empty() && GroundColumns(origin, {}).empty());
+	}
+
 	void test_props()
 	{
 		using namespace halfcraft::props;
@@ -1768,6 +1827,7 @@ int run_tests()
 	test_campaign_model_restore();
 	test_valid_link_id();
 	test_link_names();
+	test_dig_ground();
 	test_props();
 	test_sandbox();
 	test_ipv4_of();

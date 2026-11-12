@@ -22,6 +22,8 @@
 #include <memory>
 #include <string>
 
+#include "core/hc_dig_ground.h"
+#include "core/hc_dig_material.h"
 #include "core/hc_log.h"
 #include "server/hc_block_solids.h"
 #include "server/hc_dig.h"
@@ -662,21 +664,59 @@ namespace halfcraft
 
 	void WorldCollision::add_displacements(const Vector& mins, const Vector& maxs, ColPrimitives& out) const
 	{
-		CPhysCollide* collide = enginetrace->GetCollidableFromDisplacementsInAABB(mins, maxs);
+		// the ground over the box too, as far as the rock under it reaches into the box (core/hc_dig_ground.h)
+		const Vector  above(maxs.x, maxs.y, maxs.z + GROUND_DEPTH * static_cast<float>(UNITS_PER_BLOCK));
+		CPhysCollide* collide = enginetrace->GetCollidableFromDisplacementsInAABB(mins, above);
 		if (!collide) {
 			return;
 		}
-		ICollisionQuery* query = physcollision->CreateQueryModel(collide);
+		float lo[3], hi[3];
+		to_mc_box(mins, maxs, lo, hi);
+		const bool                        digging = dig_ && dig_->count() > 0;
+		std::vector<DigBox>               boxes;
+		std::vector<std::array<float, 9>> pieces;
+		ICollisionQuery*                  query = physcollision->CreateQueryModel(collide);
 		for (int c = 0; c < query->ConvexCount(); ++c) {
 			for (int t = 0; t < query->TriangleCount(c); ++t) {
 				Vector verts[3];
 				query->GetTriangleVerts(c, t, verts);
 				ColPrimitives::Tri tri;
+				float              tlo[3] = { FLT_MAX, FLT_MAX, FLT_MAX }, thi[3] = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
 				for (int v = 0; v < 3; ++v) {
 					to_mc(verts[v], slot_, tri.v + v * 3);
+					for (int k = 0; k < 3; ++k) {
+						tlo[k] = std::min(tlo[k], tri.v[v * 3 + k]);
+						thi[k] = std::max(thi[k], tri.v[v * 3 + k]);
+					}
 				}
-				tri.flags = 0;
-				out.tris.push_back(tri);
+				// the ground digs as its surface does: dirt, sand, grass (dirt), a rock face's concrete (stone)
+				const surfacedata_t* data = physprops->GetSurfaceData(query->GetTriangleMaterialIndex(c, t));
+				tri.flags = dig_flags(data && data->game.material != 0 ? dig_material(static_cast<char>(data->game.material)) : DIG_DIRT);
+				out.ground.push_back(tri);
+				bool inside = true;
+				for (int k = 0; k < 3; ++k) {
+					inside = inside && thi[k] >= lo[k] && tlo[k] <= hi[k];
+				}
+				if (!inside) {
+					continue;  // over the box: only the rock under it reaches in
+				}
+				// the cells dug through it come out of it, so a hole in the ground opens
+				boxes.clear();
+				if (digging) {
+					dig_->boxes_in(tlo, thi, boxes);
+				}
+				if (boxes.empty()) {
+					out.tris.push_back(tri);
+					continue;
+				}
+				pieces.clear();
+				subtract_boxes_from_tri(tri.v, boxes, pieces);
+				for (const auto& piece : pieces) {
+					ColPrimitives::Tri cut;
+					std::copy(piece.begin(), piece.end(), cut.v);
+					cut.flags = tri.flags;
+					out.tris.push_back(cut);
+				}
 			}
 		}
 		physcollision->DestroyQueryModel(query);

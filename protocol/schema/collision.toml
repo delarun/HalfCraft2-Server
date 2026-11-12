@@ -35,7 +35,7 @@ note = "bits 8-15: the face's DigMaterial, with kTriDiggable"
 [enums.ColTriFlags.items]
 kTriStairHelper = { bit = 0, doc = "an invisible stair ramp: walkable, never a wall" }
 kTriSky = { bit = 1, doc = "a brush of the map's sky (its skybox ceiling): what's under it is out in the open" }
-kTriDiggable = { bit = 2, doc = "a face of a world brush (not the sky's) that Minecraft can dig out" }
+kTriDiggable = { bit = 2, doc = "a face of a world brush (not the sky's) or of the ground (a displacement) that Minecraft can dig out" }
 
 [enums.DigMaterial]
 type = "u8"
@@ -49,6 +49,7 @@ kDigIron = { value = 3, doc = "minecraft:iron_block: metal, grate, vent, compute
 kDigPlanks = { value = 4, doc = "minecraft:oak_planks: wood (W; U too, which Half-Life 2 doesn't use)" }
 kDigDirt = { value = 5, doc = "minecraft:dirt: dirt (D), which Half-Life 2's cardboard and paper surfaces are too" }
 kDigGlass = { value = 6, doc = "minecraft:glass: glass (Y)" }
+kDigSand = { value = 7, doc = "minecraft:sand: sand (N), the coast's beaches" }
 
 [enums.ColBlockFlags]
 type = "u32"

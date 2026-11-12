@@ -10,6 +10,7 @@ public final class DigMaterials {
 	private static final String PLANKS = "minecraft:oak_planks";
 	private static final String DIRT = "minecraft:dirt";
 	private static final String GLASS = "minecraft:glass";
+	private static final String SAND = "minecraft:sand";
 
 	private DigMaterials() {
 	}
@@ -22,6 +23,7 @@ public final class DigMaterials {
 			case DIG_PLANKS -> PLANKS;
 			case DIG_DIRT -> DIRT;
 			case DIG_GLASS -> GLASS;
+			case DIG_SAND -> SAND;
 			default -> STONE;
 		};
 	}
@@ -34,6 +36,7 @@ public final class DigMaterials {
 			case PLANKS -> DIG_PLANKS;
 			case DIRT -> DIG_DIRT;
 			case GLASS -> DIG_GLASS;
+			case SAND -> DIG_SAND;
 			default -> DIG_STONE;
 		};
 	}

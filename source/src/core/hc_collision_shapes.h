@@ -43,6 +43,9 @@ namespace halfcraft
 		};
 		std::vector<Tri>    tris;
 		std::vector<Convex> convexes;
+		/// the ground's triangles (displacements) around, up to GROUND_DEPTH over the box too (core/hc_dig_ground.h): what
+		/// lies under them is rock for minecraft. not sent as triangles (tris has those in the box)
+		std::vector<Tri> ground;
 	};
 
 	/// a region's occupancy: bit x of rows[y * REGION_VOXELS + z] is voxel (x, y, z), each 1/8 block, counted
