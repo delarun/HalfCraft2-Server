@@ -9,7 +9,7 @@ namespace halfcraft::proto
 {
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	inline constexpr std::uint32_t kLayout = 0x87EFF987;
+	inline constexpr std::uint32_t kLayout = 0xBF35611B;
 
 	// ---- where each part of the mapping is ----------------------------------------------------------
 	inline constexpr std::uint64_t kOffHeader = 0x00;
@@ -852,8 +852,8 @@ namespace halfcraft::proto
 		kColClear = 1,   // payload: u32 epoch
 		kColRegion = 2,  // payload: ColRegion + ColBlock[count]
 		kColTris = 3,    // payload: ColRegion (count = triangles) + ColTri[count]; sent before kColRegion
-		// payload: ColRegion (count = its kVoidSome blocks) + u8 kind[512], the VoidKind of block
-		// bx + 8 * bz + 64 * by of the region, then u64 bits[8] for each kVoidSome block in that order
+		// payload: ColRegion (count = its kVoidSome and kVoidGroundSome blocks) + u8 kind[512], the VoidKind of block
+		// bx + 8 * bz + 64 * by of the region, then u64 bits[8] for each kVoidSome or kVoidGroundSome block in that order
 		// (bits[y] bit z * 8 + x, as in ColBlock). Sent before the region's kColRegion when any of its
 		// blocks has void; a kColRegion without one before it means none
 		kColVoid = 4,
@@ -891,6 +891,10 @@ namespace halfcraft::proto
 		kVoidNone = 0,
 		kVoidAll = 1,   // all of it
 		kVoidSome = 2,  // some of it: its sub-voxels follow
+		// all of it is rock under the ground (a displacement's, core/hc_dig_ground.h): dug, revealed and walled as void,
+		// but nothing collides with it (the ground's triangles hold what walks on them)
+		kVoidGroundAll = 3,
+		kVoidGroundSome = 4,  // some of it is rock under the ground, none void: its sub-voxels follow, as kVoidSome's
 	};
 
 	// Exact host collision triangle (MC space) for the player's smooth collider.

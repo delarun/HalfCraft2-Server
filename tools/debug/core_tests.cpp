@@ -693,6 +693,19 @@ namespace
 		// no solid leaf anywhere: out is reset
 		void_region(prims, BspTree{}, slot, 128, 0, 0, out);
 		CHECK(!out.any() && out.layers.empty());
+
+		// ground over the region at y 5.5 (no solid leaf): the rock under it is ground rock, not void, from 5.4 down
+		ColPrimitives      ground;
+		ColPrimitives::Tri a{ { 1024, 5.5f, 0, 1024, 5.5f, 8, 1032, 5.5f, 0 } };
+		ColPrimitives::Tri b{ { 1032, 5.5f, 0, 1024, 5.5f, 8, 1032, 5.5f, 8 } };
+		ground.ground = { a, b };
+		void_region(ground, BspTree{}, slot, 128, 0, 0, out);
+		CHECK(out.kind[0] == VOID_GROUND_ALL);              // block y 0
+		CHECK(out.kind[64 * 4] == VOID_GROUND_ALL);         // y 4
+		CHECK(out.kind[64 * 5] == VOID_GROUND_SOME);        // y 5: rock up to 5.4
+		CHECK(out.kind[64 * 6] == VOID_NONE);               // over the ground
+		CHECK(out.layers.size() == 64);                     // the y 5 layer's blocks
+		CHECK(out.layers[0][0] == ~0ull && out.layers[0][2] == ~0ull && out.layers[0][3] == 0ull);  // sub-voxel centres 5.06-5.31 under 5.4, 5.44 not
 	}
 
 	void test_void_region_tests_a_convex_by_its_planes()

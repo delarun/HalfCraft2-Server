@@ -25,6 +25,9 @@ namespace halfcraft
 	inline constexpr std::uint8_t VOID_NONE = 0;  // no sub-voxel is void
 	inline constexpr std::uint8_t VOID_ALL = 1;   // every one is
 	inline constexpr std::uint8_t VOID_SOME = 2;  // some are: the block has a layers entry
+	// rock under the ground, and no void: rock for digging, nothing collides with it (core/hc_dig_ground.h)
+	inline constexpr std::uint8_t VOID_GROUND_ALL = 3;
+	inline constexpr std::uint8_t VOID_GROUND_SOME = 4;  // with a layers entry, as VOID_SOME
 
 	/// the void in one region: for each block (bx + 8bz + 64by), how much of it is void
 	struct RegionVoid
@@ -96,10 +99,7 @@ namespace halfcraft
 
 		const GroundColumns ground(origin, prims.ground);
 		const bool          has_ground = !ground.empty();
-		const auto          is_void = [&](double x, double y, double z) {
-			if (has_ground && ground.under(x, y, z)) {
-				return true;
-			}
+		const auto          map_void = [&](double x, double y, double z) {
 			float source[3];
 			mc_to_source(x, y, z, slot, source);
 			if ((point_contents(tree, source) & BSP_CONTENTS_SOLID) == 0) {
@@ -113,6 +113,14 @@ namespace halfcraft
 			}
 			return true;
 		};
+		bool       seen_map = false;  // the block being looked at has void beyond the map in it, not only rock under ground
+		const auto is_void = [&](double x, double y, double z) {
+			if (map_void(x, y, z)) {
+				seen_map = true;
+				return true;
+			}
+			return has_ground && ground.under(x, y, z);
+		};
 
 		constexpr double NEAR_EDGE = 1.0 / 16.0, FAR_EDGE = 15.0 / 16.0;
 		std::size_t      block = 0;  // bx + 8bz + 64by, which the loops count up
@@ -121,6 +129,7 @@ namespace halfcraft
 				for (int bx = 0; bx < N; ++bx) {
 					const double x = origin[0] + bx, y = origin[1] + by, z = origin[2] + bz;
 					// the 9 points: a mixture of void and not (seen_other) is as far as they need looking at
+					seen_map = false;
 					bool seen_void = is_void(x + 0.5, y + 0.5, z + 0.5), seen_other = !seen_void;
 					for (int corner = 0; corner < 8 && !(seen_void && seen_other); ++corner) {
 						if (is_void(x + ((corner & 1) != 0 ? FAR_EDGE : NEAR_EDGE), y + ((corner & 2) != 0 ? FAR_EDGE : NEAR_EDGE), z + ((corner & 4) != 0 ? FAR_EDGE : NEAR_EDGE))) {
@@ -131,11 +140,11 @@ namespace halfcraft
 					}
 					std::uint8_t& kind = out.kind[block++];
 					if (!seen_other) {
-						kind = VOID_ALL;
+						kind = seen_map ? VOID_ALL : VOID_GROUND_ALL;
 					} else if (!seen_void) {
 						kind = VOID_NONE;
 					} else {
-						kind = VOID_SOME;
+						kind = VOID_SOME;  // VOID_GROUND_SOME once its sub-voxels show no void beyond the map
 						std::array<std::uint64_t, 8> layer{};
 						for (int sy = 0; sy < 8; ++sy) {
 							for (int sz = 0; sz < 8; ++sz) {
@@ -145,6 +154,9 @@ namespace halfcraft
 									}
 								}
 							}
+						}
+						if (!seen_map) {
+							kind = VOID_GROUND_SOME;
 						}
 						out.layers.push_back(layer);
 					}

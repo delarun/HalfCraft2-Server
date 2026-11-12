@@ -10,7 +10,7 @@ public final class Proto {
 
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	public static final int LAYOUT = 0x87EFF987;
+	public static final int LAYOUT = 0xBF35611B;
 
 	// ---- where each part of the mapping is
 	public static final long OFF_HEADER = 0x00;
@@ -768,8 +768,8 @@ public final class Proto {
 	public static final int COL_CLEAR = 1; // payload: u32 epoch
 	public static final int COL_REGION = 2; // payload: ColRegion + ColBlock[count]
 	public static final int COL_TRIS = 3; // payload: ColRegion (count = triangles) + ColTri[count]; sent before COL_REGION
-	// payload: ColRegion (count = its VOID_SOME blocks) + u8 kind[512], the VoidKind of block
-	// bx + 8 * bz + 64 * by of the region, then u64 bits[8] for each VOID_SOME block in that order
+	// payload: ColRegion (count = its VOID_SOME and VOID_GROUND_SOME blocks) + u8 kind[512], the VoidKind of block
+	// bx + 8 * bz + 64 * by of the region, then u64 bits[8] for each VOID_SOME or VOID_GROUND_SOME block in that order
 	// (bits[y] bit z * 8 + x, as in ColBlock). Sent before the region's COL_REGION when any of its
 	// blocks has void; a COL_REGION without one before it means none
 	public static final int COL_VOID = 4;
@@ -799,6 +799,10 @@ public final class Proto {
 	public static final int VOID_NONE = 0;
 	public static final int VOID_ALL = 1; // all of it
 	public static final int VOID_SOME = 2; // some of it: its sub-voxels follow
+	// all of it is rock under the ground (a displacement's, core/hc_dig_ground.h): dug, revealed and walled as void,
+	// but nothing collides with it (the ground's triangles hold what walks on them)
+	public static final int VOID_GROUND_ALL = 3;
+	public static final int VOID_GROUND_SOME = 4; // some of it is rock under the ground, none void: its sub-voxels follow, as VOID_SOME's
 
 	// ColTri: offsets in it
 	// Exact host collision triangle (MC space) for the player's smooth collider.

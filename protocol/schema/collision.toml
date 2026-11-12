@@ -23,8 +23,8 @@ kColClear = { value = 1, doc = "payload: u32 epoch" }
 kColRegion = { value = 2, doc = "payload: ColRegion + ColBlock[count]" }
 kColTris = { value = 3, doc = "payload: ColRegion (count = triangles) + ColTri[count]; sent before kColRegion" }
 kColVoid = { value = 4, doc = """
-payload: ColRegion (count = its kVoidSome blocks) + u8 kind[512], the VoidKind of block
-bx + 8 * bz + 64 * by of the region, then u64 bits[8] for each kVoidSome block in that order
+payload: ColRegion (count = its kVoidSome and kVoidGroundSome blocks) + u8 kind[512], the VoidKind of block
+bx + 8 * bz + 64 * by of the region, then u64 bits[8] for each kVoidSome or kVoidGroundSome block in that order
 (bits[y] bit z * 8 + x, as in ColBlock). Sent before the region's kColRegion when any of its
 blocks has void; a kColRegion without one before it means none""" }
 
@@ -65,6 +65,10 @@ doc = "how much of a block is void (kColVoid): in a solid leaf of the map's BSP 
 kVoidNone = 0
 kVoidAll = { value = 1, doc = "all of it" }
 kVoidSome = { value = 2, doc = "some of it: its sub-voxels follow" }
+kVoidGroundAll = { value = 3, doc = """
+all of it is rock under the ground (a displacement's, core/hc_dig_ground.h): dug, revealed and walled as void,
+but nothing collides with it (the ground's triangles hold what walks on them)""" }
+kVoidGroundSome = { value = 4, doc = "some of it is rock under the ground, none void: its sub-voxels follow, as kVoidSome's" }
 
 [structs.ColTri]
 size = 40

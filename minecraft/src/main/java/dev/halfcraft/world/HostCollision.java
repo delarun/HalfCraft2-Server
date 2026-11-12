@@ -224,13 +224,17 @@ public final class HostCollision {
 		long @Nullable [] at(int bx, int by, int bz) {
 			int i = bx + REGION_SIZE * bz + REGION_SIZE * REGION_SIZE * by;
 			return switch (this.kinds[i]) {
-				case VOID_ALL -> ALL_VOID;
-				case VOID_SOME -> this.layers[i];
+				case VOID_ALL, VOID_GROUND_ALL -> ALL_VOID;
+				case VOID_SOME, VOID_GROUND_SOME -> this.layers[i];
 				default -> null;
 			};
 		}
 
-		/** Block (bx, by, bz)'s void as a collision shape ({@code rock}: joined with its geometry), or null for none. */
+		/**
+		 * Block (bx, by, bz)'s void as a collision shape ({@code rock}: joined with its geometry), or null for none.
+		 * Rock under the ground has none: the ground's triangles hold what walks on it, and its voxels' steps caught
+		 * players walking up a slope.
+		 */
 		@Nullable
 		VoxelShape shape(int bx, int by, int bz, boolean rock) {
 			int i = bx + REGION_SIZE * bz + REGION_SIZE * REGION_SIZE * by;
@@ -580,7 +584,7 @@ public final class HostCollision {
 		long layersAt = kindsAt + VOID_BLOCKS;
 		int some = 0; // how many partly void blocks came before this one
 		for (int i = 0; i < VOID_BLOCKS; i++) {
-			if (kinds[i] == VOID_SOME) {
+			if (kinds[i] == VOID_SOME || kinds[i] == VOID_GROUND_SOME) {
 				if (some < count) {
 					layers[i] = readLayers(s, layersAt + some * VOID_LAYERS_BYTES);
 				}

@@ -349,6 +349,7 @@ namespace halfcraft
 	static_assert(VOID_NONE == proto::kVoidNone);
 	static_assert(VOID_ALL == proto::kVoidAll);
 	static_assert(VOID_SOME == proto::kVoidSome);
+	static_assert(VOID_GROUND_ALL == proto::kVoidGroundAll && VOID_GROUND_SOME == proto::kVoidGroundSome);
 	static_assert(sizeof(RegionVoid::kind) == 512 && sizeof(std::array<std::uint64_t, 8>) == sizeof(proto::ColBlock::bits));  // kColVoid's kind, and a kVoidSome block's bits
 
 	void CollisionStreamer::voxelize(const Job& job)
