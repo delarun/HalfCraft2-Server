@@ -34,7 +34,12 @@ import org.jspecify.annotations.Nullable;
  */
 public final class HubPortals {
 	/** Where the hub is: the spot it was built around (feet), and each portal opening's cells by map. */
-	private record Layout(int x, int y, int z, Map<String, String> openings) {
+	private record Layout(int x, int y, int z, Map<String, String> openings, @Nullable String facing) {
+		/** The way the rows go from the spot (north for a hub kept before it had one). */
+		Direction forward() {
+			Direction named = facing == null ? null : Direction.byName(facing);
+			return named != null && named.getAxis().isHorizontal() ? named : Direction.NORTH;
+		}
 	}
 
 	private static final Gson GSON = new Gson();
@@ -75,7 +80,7 @@ public final class HubPortals {
 			for (ServerPlayer player : players) {
 				// once its Half-Life spawn put it somewhere: a few seconds in
 				if (player.tickCount > 200 && player.onGround()) {
-					build(player.level(), player.blockPosition());
+					build(player.level(), player.blockPosition(), player.getDirection());
 					break;
 				}
 			}
@@ -126,32 +131,66 @@ public final class HubPortals {
 			player.sendSystemMessage(Component.literal("Хаб ещё строится"));
 			return;
 		}
-		player.teleportTo(player.level(), layout.x() + 0.5, layout.y(), layout.z() + 0.5, Set.of(), 180.0F, 0.0F, true);
+		player.teleportTo(player.level(), layout.x() + 0.5, layout.y(), layout.z() + 0.5, Set.of(), layout.forward().toYRot(), 0.0F, true);
 	}
 
 	private static String key(BlockPos pos) {
 		return pos.getX() + "," + pos.getY() + "," + pos.getZ();
 	}
 
-	/**
-	 * The hub around {@code spot}: the chapters' rows go north (-z) from it, each row's portals along x, centred on
-	 * the spot; a floor under all of it, the room over it cleared of Minecraft's blocks.
-	 */
-	private static void build(ServerLevel level, BlockPos spot) {
-		List<String> chapters = Network.chapters();
+	/** /hubhere: the hub, where it was, goes, and is built again where the player stands, its rows the way they look. */
+	static void buildHere(ServerPlayer player) {
+		ServerLevel level = player.level();
+		if (layout != null) {
+			clear(level, new BlockPos(layout.x(), layout.y(), layout.z()), layout.forward());
+		}
+		build(level, player.blockPosition(), player.getDirection());
+		player.sendSystemMessage(Component.literal("Хаб построен здесь, ряды порталов вперёд"));
+	}
+
+	/** The block {@code side} blocks to the right of the spot, {@code ahead} blocks ahead of it and {@code up} above. */
+	private static BlockPos at(BlockPos spot, Direction forward, int side, int up, int ahead) {
+		Direction right = forward.getClockWise();
+		return spot.offset(right.getStepX() * side + forward.getStepX() * ahead, up, right.getStepZ() * side + forward.getStepZ() * ahead);
+	}
+
+	private static int halfWidth() {
 		int widest = 1;
-		for (String chapter : chapters) {
+		for (String chapter : Network.chapters()) {
 			widest = Math.max(widest, mapsOf(chapter).size());
 		}
-		int halfWidth = widest * PORTAL_STEP / 2 + 3;
-		int depth = FIRST_ROW + chapters.size() * ROW_STEP + 2;
-		int floorY = spot.getY() - 1;
+		return widest * PORTAL_STEP / 2 + 3;
+	}
+
+	private static int depth() {
+		return FIRST_ROW + Network.chapters().size() * ROW_STEP + 2;
+	}
+
+	/** Everything a hub built at {@code spot} the way {@code forward} put there, gone. */
+	private static void clear(ServerLevel level, BlockPos spot, Direction forward) {
+		int halfWidth = halfWidth(), depth = depth();
+		for (int side = -halfWidth; side <= halfWidth; side++) {
+			for (int ahead = -2; ahead < depth; ahead++) {
+				for (int up = -1; up <= 5; up++) {
+					level.setBlock(at(spot, forward, side, up, ahead), Blocks.AIR.defaultBlockState(), 2);
+				}
+			}
+		}
+	}
+
+	/**
+	 * The hub around {@code spot}: the chapters' rows go {@code forward} from it, each row's portals across, centred on
+	 * the spot; a floor under all of it, the room over it cleared of Minecraft's blocks.
+	 */
+	private static void build(ServerLevel level, BlockPos spot, Direction forward) {
+		List<String> chapters = Network.chapters();
+		int halfWidth = halfWidth(), depth = depth();
 		BlockState floor = Blocks.POLISHED_ANDESITE.defaultBlockState();
-		for (int dx = -halfWidth; dx <= halfWidth; dx++) {
-			for (int dz = 1 - depth; dz <= 2; dz++) {
-				level.setBlockAndUpdate(new BlockPos(spot.getX() + dx, floorY, spot.getZ() + dz), floor);
-				for (int dy = 1; dy <= 5; dy++) {
-					level.setBlockAndUpdate(new BlockPos(spot.getX() + dx, floorY + dy, spot.getZ() + dz), Blocks.AIR.defaultBlockState());
+		for (int side = -halfWidth; side <= halfWidth; side++) {
+			for (int ahead = -2; ahead < depth; ahead++) {
+				level.setBlockAndUpdate(at(spot, forward, side, -1, ahead), floor);
+				for (int up = 0; up <= 5; up++) {
+					level.setBlockAndUpdate(at(spot, forward, side, up, ahead), Blocks.AIR.defaultBlockState());
 				}
 			}
 		}
@@ -159,25 +198,25 @@ public final class HubPortals {
 		for (int row = 0; row < chapters.size(); row++) {
 			String chapter = chapters.get(row);
 			List<Network.Pair> maps = mapsOf(chapter);
-			int z = spot.getZ() - FIRST_ROW - row * ROW_STEP;
-			int firstX = spot.getX() - (maps.size() - 1) * PORTAL_STEP / 2;
-			// the chapter's name, at the row's west end
-			BlockPos title = new BlockPos(firstX - 3, spot.getY(), z + 1);
-			level.setBlockAndUpdate(title, Blocks.DARK_OAK_SIGN.defaultBlockState().setValue(StandingSignBlock.ROTATION, 8));
+			int ahead = FIRST_ROW + row * ROW_STEP;
+			int first = -(maps.size() - 1) * PORTAL_STEP / 2;
+			// the chapter's name, at the row's left end, facing the spot
+			BlockPos title = at(spot, forward, first - 3, 0, ahead - 1);
+			int rotation = (forward.getOpposite().get2DDataValue() * 4 + 8) % 16;
+			level.setBlockAndUpdate(title, Blocks.DARK_OAK_SIGN.defaultBlockState().setValue(StandingSignBlock.ROTATION, rotation));
 			sign(level, title, (row + 1) + ". " + chapter, DyeColor.YELLOW);
 			for (int i = 0; i < maps.size(); i++) {
-				Network.Pair pair = maps.get(i);
-				int x = firstX + i * PORTAL_STEP;
-				portal(level, new BlockPos(x, spot.getY(), z), pair, openings);
+				portal(level, spot, forward, first + i * PORTAL_STEP, ahead, maps.get(i), openings);
 			}
 		}
-		layout = new Layout(spot.getX(), spot.getY(), spot.getZ(), openings);
+		layout = new Layout(spot.getX(), spot.getY(), spot.getZ(), openings, forward.getSerializedName());
 		try {
 			Files.writeString(file(), GSON.toJson(layout));
 		} catch (IOException e) {
 			HalfCraft.LOG.error("HalfCraft: can't keep where the hub is", e);
 		}
-		HalfCraft.LOG.info("HalfCraft: the hub built around {}: {} chapters, {} portals", spot.toShortString(), chapters.size(), openings.size() / 2);
+		HalfCraft.LOG.info("HalfCraft: the hub built around {}, its rows {}: {} chapters, {} portals", spot.toShortString(), forward.getSerializedName(),
+			chapters.size(), openings.size() / 2);
 	}
 
 	private static List<Network.Pair> mapsOf(String chapter) {
@@ -191,24 +230,24 @@ public final class HubPortals {
 	}
 
 	/**
-	 * A portal: a frame of obsidian round a 1 by 2 opening at {@code bottom}, its map's name on a sign over it. Not a
-	 * block that shines: Half-Life lights each light near the player with shadow maps, and 68 portals' crying obsidian
-	 * made it crawl.
+	 * A portal: a frame of obsidian round a 1 by 2 opening {@code side} blocks across and {@code ahead} blocks ahead of
+	 * the spot, its map's name on a sign over it, facing the spot. Not a block that shines: Half-Life lights each light
+	 * near the player with shadow maps, and 68 portals' crying obsidian made it crawl.
 	 */
-	private static void portal(ServerLevel level, BlockPos bottom, Network.Pair pair, Map<String, String> openings) {
+	private static void portal(ServerLevel level, BlockPos spot, Direction forward, int side, int ahead, Network.Pair pair, Map<String, String> openings) {
 		BlockState frame = Blocks.OBSIDIAN.defaultBlockState();
-		for (int dx = -1; dx <= 1; dx++) {
-			for (int dy = -1; dy <= 2; dy++) {
-				BlockPos at = bottom.offset(dx, dy, 0);
-				boolean opening = dx == 0 && (dy == 0 || dy == 1);
-				level.setBlockAndUpdate(at, opening ? Blocks.AIR.defaultBlockState() : frame);
+		for (int across = -1; across <= 1; across++) {
+			for (int up = -1; up <= 2; up++) {
+				BlockPos pos = at(spot, forward, side + across, up, ahead);
+				boolean opening = across == 0 && (up == 0 || up == 1);
+				level.setBlockAndUpdate(pos, opening ? Blocks.AIR.defaultBlockState() : frame);
 				if (opening) {
-					openings.put(key(at), pair.name());
+					openings.put(key(pos), pair.name());
 				}
 			}
 		}
-		BlockPos sign = bottom.offset(0, 2, 1);
-		level.setBlockAndUpdate(sign, Blocks.OAK_WALL_SIGN.defaultBlockState().setValue(WallSignBlock.FACING, Direction.SOUTH));
+		BlockPos sign = at(spot, forward, side, 2, ahead - 1);
+		level.setBlockAndUpdate(sign, Blocks.OAK_WALL_SIGN.defaultBlockState().setValue(WallSignBlock.FACING, forward.getOpposite()));
 		sign(level, sign, pair.map(), DyeColor.BLACK);
 	}
 

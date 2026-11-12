@@ -295,6 +295,15 @@ public final class Network {
 		}
 		dispatcher.register(Commands.literal("hub").executes(context -> hub(context.getSource().getPlayerOrException())));
 		dispatcher.register(Commands.literal("spawn").executes(context -> hub(context.getSource().getPlayerOrException())));
+		dispatcher.register(Commands.literal("hubhere").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).executes(context -> {
+			ServerPlayer player = context.getSource().getPlayerOrException();
+			if (!HUB.equals(current)) {
+				player.sendSystemMessage(Component.literal("Это команда хаба"));
+				return 0;
+			}
+			HubPortals.buildHere(player);
+			return 1;
+		}));
 		dispatcher.register(Commands.literal("sethome").executes(context -> {
 			ServerPlayer player = context.getSource().getPlayerOrException();
 			writePlace("homes.json", player.getUUID(), here(player));
