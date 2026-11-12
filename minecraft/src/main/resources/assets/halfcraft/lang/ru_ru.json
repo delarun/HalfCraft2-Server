@@ -7,5 +7,7 @@
   "item.halfcraft.prop_table": "Деревянный стол",
   "item.halfcraft.prop_tire": "Шина",
   "item.halfcraft.prop_radiator": "Радиатор",
-  "item.halfcraft.prop_barrier": "Бетонное ограждение"
+  "item.halfcraft.prop_barrier": "Бетонное ограждение",
+  "item.halfcraft.hl_prop": "Объект Half-Life",
+  "item.halfcraft.hl_prop.named": "%s (Half-Life)"
 }

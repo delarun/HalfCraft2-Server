@@ -38,12 +38,26 @@ kEvCollisionLost = { value = 18, doc = """
 Minecraft dropped collision messages it couldn't read (the ring lost its place): the
 host streams its collision afresh""" }
 kEvPlaceProp = { value = 19, doc = """
-a player used a Half-Life prop's item: weapon = its PropKind; the host puts the prop where the
-player looks (the halfcraft server's: playerId's player)""" }
+a player used a Half-Life prop's item: weapon = its PropKind (0: the model the kEvPropModel pieces
+before it name), attackerId = its PropClass; the host puts the prop where the player looks (the
+halfcraft server's: playerId's player)""" }
+kEvPropModel = { value = 20, doc = """
+a piece of a model's path for the kEvPlaceProp that follows (playerId's): actorId = the piece's
+index, attackerId = the path's bytes, a/b/c/d/flags/weapon = up to 24 of them (little-endian, a's
+low byte first)""" }
 
 [enums.PropKind]
 type = "u32"
 doc = "The Half-Life props Minecraft crafts as items, and their items come back from (core/hc_props.h has their models)."
+
+[enums.PropClass]
+type = "u32"
+doc = "What kind of Half-Life object a prop's item puts back (kEvPlaceProp, kStrPropDropped)."
+
+[enums.PropClass.items]
+kPropClassPhysics = { value = 0, doc = "prop_physics: it falls, rolls, the gravity gun throws it" }
+kPropClassDoor = { value = 1, doc = "prop_door_rotating: a door on its hinge, opened with use" }
+kPropClassDynamic = { value = 2, doc = "prop_dynamic: it stands where it's put" }
 
 [enums.PropKind.items]
 kPropNone = { value = 0 }

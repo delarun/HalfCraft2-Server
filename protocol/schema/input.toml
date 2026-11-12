@@ -81,11 +81,8 @@ kInHurtFrom = { value = 24, doc = """
 where the next kInHurt came from, for Minecraft's shield: a/b/c = Minecraft x/y/z (float bits)
 of the blast's centre or of what dealt it; only that one kInHurt uses it""" }
 kInFor = { value = 25, doc = """
-on a server link: the next kInHurt, kInHurtFrom, kInHeal, kInHurtMob or kInPropDropped is for the player whose Source userid is a (the
+on a server link: the next kInHurt, kInHurtFrom, kInHeal, kInHurtMob or kStrPropDropped string is for the player whose Source userid is a (the
 HalfCraft server's Minecraft applies it to them); single player never sends it""" }
-kInPropDropped = { value = 26, doc = """
-a Half-Life prop Minecraft makes (PropKind) was broken down by Minecraft's hits: code = its PropKind,
-a/b/c = where it was (MC coords, float bits); its item drops there, for kInFor's player""" }
 kInTakeItem = { value = 27, doc = """
 the gravity gun took one of Minecraft's dropped items (ItemTable) into a held slot: code = the slot, a = the
 item entity's id. Minecraft answers kEvHeldBlock as for kInTakeBlock; kInHeldBlockLanded and kInHeldBlockLost
@@ -123,6 +120,10 @@ kStrCaption = { value = 5, doc = """
 (#26) one of the host's close captions, while Minecraft shows them (kMcSubtitles): "<from player 0|1>
 <speaker> <caption>", the speaker as "<host classname>/<model name>" ("-" for none), the caption
 localized with the host's markup (<clr:r,g,b>, <I>, <sfx>, <delay:s>, ...)""" }
+kStrPropDropped = { value = 7, doc = """
+a Half-Life object Minecraft's hits broke down (a physics prop, a door, a dynamic prop): its item goes to the
+player who struck (kInFor's on a server link; the host's player in single player), as text: "<PropKind> <PropClass>
+<x> <y> <z> <model>", where it was (MC coords); PropKind 0 for a model no crafted kind has""" }
 
 [enums.HealKind]
 type = "u16"

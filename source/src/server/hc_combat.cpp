@@ -8,9 +8,11 @@
 
 #include "tier0/valve_minmax_off.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <unordered_map>
+#include <string>
 #include <utility>
 
 #include "core/hc_log.h"
@@ -115,6 +117,19 @@ namespace halfcraft
 				}
 			}
 			Q_strncpy(out, !Q_strncmp(classname, "npc_", 4) ? classname + 4 : classname, static_cast<int>(size));
+		}
+
+		/// a kEvPropModel's 24 bytes of the path: a, b, c, d, flags and weapon, as they lie in the event.
+		std::array<std::uint32_t, 6> model_words(const proto::McEvent& event)
+		{
+			std::array<std::uint32_t, 6> words{};
+			std::memcpy(&words[0], &event.a, 4);
+			std::memcpy(&words[1], &event.b, 4);
+			std::memcpy(&words[2], &event.c, 4);
+			std::memcpy(&words[3], &event.d, 4);
+			words[4] = event.flags;
+			words[5] = event.weapon;
+			return words;
 		}
 
 		bool g_killing_player = false;  // minecraft's own death: let source's damage through
@@ -246,8 +261,11 @@ namespace halfcraft
 			case proto::kEvCollisionLost:
 				collision_lost_ = true;
 				break;
+			case proto::kEvPropModel:
+				prop_model_piece(0, event.actorId, event.attackerId, model_words(event).data());
+				break;
 			case proto::kEvPlaceProp:
-				place_prop(player, event.weapon);
+				place_prop(player, event.weapon, event.attackerId, take_prop_model(0));
 				break;
 			default:
 				break;
@@ -352,13 +370,18 @@ namespace halfcraft
 			case proto::kEvHeldBlock:
 				held_block_news_.push_back(event);  // the gravity gun's blocks, whoever holds them
 				break;
-			case proto::kEvPlaceProp:
+			case proto::kEvPropModel:
+				prop_model_piece(static_cast<int>(event.playerId), event.actorId, event.attackerId, model_words(event).data());
+				break;
+			case proto::kEvPlaceProp: {
+				const std::string model = take_prop_model(static_cast<int>(event.playerId));
 				for (CBasePlayer* each : players) {
 					if (each->GetUserID() == static_cast<int>(event.playerId)) {
-						place_prop(each, event.weapon);
+						place_prop(each, event.weapon, event.attackerId, model);
 					}
 				}
 				break;
+			}
 			default:
 				break;
 			}

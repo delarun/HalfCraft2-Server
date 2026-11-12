@@ -10,7 +10,7 @@ public final class Proto {
 
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	public static final int LAYOUT = 0xBF35611B;
+	public static final int LAYOUT = 0xE1CCFBFE;
 
 	// ---- where each part of the mapping is
 	public static final long OFF_HEADER = 0x00;
@@ -304,12 +304,9 @@ public final class Proto {
 	// where the next IN_HURT came from, for Minecraft's shield: a/b/c = Minecraft x/y/z (float bits)
 	// of the blast's centre or of what dealt it; only that one IN_HURT uses it
 	public static final int IN_HURT_FROM = 24;
-	// on a server link: the next IN_HURT, IN_HURT_FROM, IN_HEAL, IN_HURT_MOB or IN_PROP_DROPPED is for the player whose Source userid is a (the
+	// on a server link: the next IN_HURT, IN_HURT_FROM, IN_HEAL, IN_HURT_MOB or STR_PROP_DROPPED string is for the player whose Source userid is a (the
 	// HalfCraft server's Minecraft applies it to them); single player never sends it
 	public static final int IN_FOR = 25;
-	// a Half-Life prop Minecraft makes (PropKind) was broken down by Minecraft's hits: code = its PropKind,
-	// a/b/c = where it was (MC coords, float bits); its item drops there, for IN_FOR's player
-	public static final int IN_PROP_DROPPED = 26;
 	// the gravity gun took one of Minecraft's dropped items (ItemTable) into a held slot: code = the slot, a = the
 	// item entity's id. Minecraft answers EV_HELD_BLOCK as for IN_TAKE_BLOCK; IN_HELD_BLOCK_LANDED and IN_HELD_BLOCK_LOST
 	// drop the item in their cell
@@ -341,6 +338,10 @@ public final class Proto {
 	// <speaker> <caption>", the speaker as "<host classname>/<model name>" ("-" for none), the caption
 	// localized with the host's markup (<clr:r,g,b>, <I>, <sfx>, <delay:s>, ...)
 	public static final int STR_CAPTION = 5;
+	// a Half-Life object Minecraft's hits broke down (a physics prop, a door, a dynamic prop): its item goes to the
+	// player who struck (IN_FOR's on a server link; the host's player in single player), as text: "<PropKind> <PropClass>
+	// <x> <y> <z> <model>", where it was (MC coords); PropKind 0 for a model no crafted kind has
+	public static final int STR_PROP_DROPPED = 7;
 	// 6: kept for the puppet group (A), 8 for the world group (C)
 
 	// HealKind
@@ -427,9 +428,14 @@ public final class Proto {
 	// Minecraft dropped collision messages it couldn't read (the ring lost its place): the
 	// host streams its collision afresh
 	public static final int EV_COLLISION_LOST = 18;
-	// a player used a Half-Life prop's item: weapon = its PropKind; the host puts the prop where the
-	// player looks (the halfcraft server's: playerId's player)
+	// a player used a Half-Life prop's item: weapon = its PropKind (0: the model the EV_PROP_MODEL pieces
+	// before it name), attackerId = its PropClass; the host puts the prop where the player looks (the
+	// halfcraft server's: playerId's player)
 	public static final int EV_PLACE_PROP = 19;
+	// a piece of a model's path for the EV_PLACE_PROP that follows (playerId's): actorId = the piece's
+	// index, attackerId = the path's bytes, a/b/c/d/flags/weapon = up to 24 of them (little-endian, a's
+	// low byte first)
+	public static final int EV_PROP_MODEL = 20;
 	// 6-7: kept for #12 (the host's weapons), 8-9 for #13 (Minecraft's mobs), 12-13 for the puppet group (A)
 
 	// PropKind
@@ -444,6 +450,12 @@ public final class Proto {
 	public static final int PROP_TIRE = 7; // a car tire
 	public static final int PROP_RADIATOR = 8; // a radiator
 	public static final int PROP_BARRIER = 9; // a concrete road barrier
+
+	// PropClass
+	// What kind of Half-Life object a prop's item puts back (EV_PLACE_PROP, STR_PROP_DROPPED).
+	public static final int PROP_CLASS_PHYSICS = 0; // prop_physics: it falls, rolls, the gravity gun throws it
+	public static final int PROP_CLASS_DOOR = 1; // prop_door_rotating: a door on its hinge, opened with use
+	public static final int PROP_CLASS_DYNAMIC = 2; // prop_dynamic: it stands where it's put
 
 	// HeldBlockNews
 	// What Minecraft did with a held slot (EV_HELD_BLOCK).

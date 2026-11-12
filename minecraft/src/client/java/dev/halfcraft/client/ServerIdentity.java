@@ -27,6 +27,9 @@ final class ServerIdentity {
 			waterSent = null;
 		});
 		ClientTickEvents.END_CLIENT_TICK.register(ServerIdentity::tick);
+		// a single player's server.dll's broken-down objects, for the integrated server to give the player
+		dev.halfcraft.link.HostStrings.register(dev.halfcraft.link.Proto.STR_PROP_DROPPED,
+			text -> dev.halfcraft.props.HostProps.dropped(Minecraft.getInstance().getSingleplayerServer(), text));
 		// what the gravity gun's held cubes are, which only the server knows
 		ClientPlayNetworking.registerGlobalReceiver(dev.halfcraft.world.HeldSync.TYPE, (payload, context) -> dev.halfcraft.world.HeldSync.received(payload));
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, minecraft) -> dev.halfcraft.world.HeldSync.clear());

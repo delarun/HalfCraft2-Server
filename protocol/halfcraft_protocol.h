@@ -9,7 +9,7 @@ namespace halfcraft::proto
 {
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	inline constexpr std::uint32_t kLayout = 0xBF35611B;
+	inline constexpr std::uint32_t kLayout = 0xE1CCFBFE;
 
 	// ---- where each part of the mapping is ----------------------------------------------------------
 	inline constexpr std::uint64_t kOffHeader = 0x00;
@@ -317,12 +317,9 @@ namespace halfcraft::proto
 		// where the next kInHurt came from, for Minecraft's shield: a/b/c = Minecraft x/y/z (float bits)
 		// of the blast's centre or of what dealt it; only that one kInHurt uses it
 		kInHurtFrom = 24,
-		// on a server link: the next kInHurt, kInHurtFrom, kInHeal, kInHurtMob or kInPropDropped is for the player whose Source userid is a (the
+		// on a server link: the next kInHurt, kInHurtFrom, kInHeal, kInHurtMob or kStrPropDropped string is for the player whose Source userid is a (the
 		// HalfCraft server's Minecraft applies it to them); single player never sends it
 		kInFor = 25,
-		// a Half-Life prop Minecraft makes (PropKind) was broken down by Minecraft's hits: code = its PropKind,
-		// a/b/c = where it was (MC coords, float bits); its item drops there, for kInFor's player
-		kInPropDropped = 26,
 		// the gravity gun took one of Minecraft's dropped items (ItemTable) into a held slot: code = the slot, a = the
 		// item entity's id. Minecraft answers kEvHeldBlock as for kInTakeBlock; kInHeldBlockLanded and kInHeldBlockLost
 		// drop the item in their cell
@@ -358,6 +355,10 @@ namespace halfcraft::proto
 		// <speaker> <caption>", the speaker as "<host classname>/<model name>" ("-" for none), the caption
 		// localized with the host's markup (<clr:r,g,b>, <I>, <sfx>, <delay:s>, ...)
 		kStrCaption = 5,
+		// a Half-Life object Minecraft's hits broke down (a physics prop, a door, a dynamic prop): its item goes to the
+		// player who struck (kInFor's on a server link; the host's player in single player), as text: "<PropKind> <PropClass>
+		// <x> <y> <z> <model>", where it was (MC coords); PropKind 0 for a model no crafted kind has
+		kStrPropDropped = 7,
 		// 6: kept for the puppet group (A), 8 for the world group (C)
 	};
 
@@ -459,9 +460,14 @@ namespace halfcraft::proto
 		// Minecraft dropped collision messages it couldn't read (the ring lost its place): the
 		// host streams its collision afresh
 		kEvCollisionLost = 18,
-		// a player used a Half-Life prop's item: weapon = its PropKind; the host puts the prop where the
-		// player looks (the halfcraft server's: playerId's player)
+		// a player used a Half-Life prop's item: weapon = its PropKind (0: the model the kEvPropModel pieces
+		// before it name), attackerId = its PropClass; the host puts the prop where the player looks (the
+		// halfcraft server's: playerId's player)
 		kEvPlaceProp = 19,
+		// a piece of a model's path for the kEvPlaceProp that follows (playerId's): actorId = the piece's
+		// index, attackerId = the path's bytes, a/b/c/d/flags/weapon = up to 24 of them (little-endian, a's
+		// low byte first)
+		kEvPropModel = 20,
 		// 6-7: kept for #12 (the host's weapons), 8-9 for #13 (Minecraft's mobs), 12-13 for the puppet group (A)
 	};
 
@@ -478,6 +484,14 @@ namespace halfcraft::proto
 		kPropTire = 7,           // a car tire
 		kPropRadiator = 8,       // a radiator
 		kPropBarrier = 9,        // a concrete road barrier
+	};
+
+	// What kind of Half-Life object a prop's item puts back (kEvPlaceProp, kStrPropDropped).
+	enum PropClass : std::uint32_t
+	{
+		kPropClassPhysics = 0,  // prop_physics: it falls, rolls, the gravity gun throws it
+		kPropClassDoor = 1,     // prop_door_rotating: a door on its hinge, opened with use
+		kPropClassDynamic = 2,  // prop_dynamic: it stands where it's put
 	};
 
 	// What Minecraft did with a held slot (kEvHeldBlock).

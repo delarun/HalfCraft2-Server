@@ -31,6 +31,7 @@ public final class ServerPlayers {
 	private static final Map<UUID, Integer> USER_IDS = new HashMap<>();
 	// the input ring's state: the player the next hurt, hurt-from or heal is for, and where the next hurt came from
 	private static int forUserId;
+	private static @Nullable MinecraftServer current; // the server whose link's input this tick drains
 	private static @Nullable Vec3 hurtFrom;
 
 	/** A player's Minecraft names their Source player. */
@@ -50,6 +51,10 @@ public final class ServerPlayers {
 
 	/** Both sides: the payload; the server: its handler and the players leaving. */
 	public static void register() {
+		if (net.fabricmc.loader.api.FabricLoader.getInstance().getEnvironmentType() == net.fabricmc.api.EnvType.SERVER) {
+			// a dedicated server's own strings from server.so: a single player's client has these channels' handlers
+			HostStrings.register(Proto.STR_PROP_DROPPED, text -> dev.halfcraft.props.HostProps.droppedOnServer(current != null ? target(current) : null, text));
+		}
 		PayloadTypeRegistry.serverboundPlay().register(SourcePlayerPayload.TYPE, SourcePlayerPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(SourcePlayerPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
@@ -77,6 +82,7 @@ public final class ServerPlayers {
 
 	/** The server, each tick: server.so's hurts and heals, the world's events (blasts, bullets, mobs hurt, the gravity gun's blocks), and the players' health for it. */
 	public static void tick(MinecraftServer server, ServerLink link) {
+		current = server;
 		link.drainInput((type, code, a, b, c) -> {
 			switch (type) {
 				case Proto.IN_FOR -> {
@@ -104,8 +110,7 @@ public final class ServerPlayers {
 				case Proto.IN_BULLET_HIT -> dev.halfcraft.world.HostBlockDamage.bulletHit(server, new net.minecraft.core.BlockPos(a, b, c));
 				case Proto.IN_TAKE_BLOCK -> dev.halfcraft.world.HeldBlocks.take(server, code, new net.minecraft.core.BlockPos(a, b, c));
 				case Proto.IN_HELD_BLOCK_LANDED -> dev.halfcraft.world.HeldBlocks.landed(server, code, new net.minecraft.core.BlockPos(a, b, c));
-				case Proto.IN_PROP_DROPPED -> dev.halfcraft.props.HostProps.droppedOnServer(server, code, dev.halfcraft.combat.HostHurts.coordinate(a),
-					dev.halfcraft.combat.HostHurts.coordinate(b), dev.halfcraft.combat.HostHurts.coordinate(c));
+				case Proto.IN_STRING -> HostStrings.accept(code, a, b, c); // the player who struck's broken-down objects (STR_PROP_DROPPED)
 				case Proto.IN_TAKE_ITEM -> dev.halfcraft.world.HeldBlocks.takeItem(server, code, a);
 				case Proto.IN_HELD_BLOCK_LOST -> dev.halfcraft.world.HeldBlocks.lost(server, code, new net.minecraft.core.BlockPos(a, b, c));
 				default -> {

@@ -60,5 +60,7 @@
   "item.halfcraft.prop_table": "Wooden Table",
   "item.halfcraft.prop_tire": "Tire",
   "item.halfcraft.prop_radiator": "Radiator",
-  "item.halfcraft.prop_barrier": "Concrete Barrier"
+  "item.halfcraft.prop_barrier": "Concrete Barrier",
+  "item.halfcraft.hl_prop": "Half-Life Object",
+  "item.halfcraft.hl_prop.named": "%s (Half-Life)"
 }
