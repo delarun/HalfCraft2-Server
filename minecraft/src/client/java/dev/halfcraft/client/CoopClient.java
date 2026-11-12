@@ -67,8 +67,64 @@ public final class CoopClient {
 		HalfCraft.LOG.info("HalfCraft: to another pair: Minecraft goes to {}", CoopPlan.address(packed, minecraftPort));
 	}
 
+	// the HalfCraft server's network (Network.InfoPayload): its hub's Source server ("ip:port") and Minecraft port, and
+	// whether this pair is the hub; null for none
+	private static @Nullable String hubSource;
+	private static int hubMinecraftPort;
+	private static boolean onHub = true;
+	private static long lostSinceMs; // since when this map's pair has been out of reach (0: it's in reach)
+	private static boolean crashed; // back to the hub because a map's pair went down: the hub's arrival says so
+	/** How long a map's pair may be out of reach before the player goes back to the hub: its server went down. */
+	private static final long LOST_MS = 8_000L;
+
+	/** The pair the player is on told where the hub is (Network.InfoPayload). Render thread. */
+	public static void network(Minecraft minecraft, String hub, int minecraftPort, boolean hubHere) {
+		hubSource = hub;
+		hubMinecraftPort = minecraftPort;
+		onHub = hubHere;
+		lostSinceMs = 0;
+		if (hubHere && crashed && minecraft.player != null) {
+			crashed = false;
+			minecraft.player.sendSystemMessage(net.minecraft.network.chat.Component.literal("Сервер крашнулся: ты вернулся в хаб")
+				.withStyle(net.minecraft.ChatFormatting.RED));
+			minecraft.player.sendOverlayMessage(net.minecraft.network.chat.Component.literal("Сервер карты упал")
+				.withStyle(net.minecraft.ChatFormatting.RED));
+		}
+	}
+
+	/**
+	 * A map's pair out of reach for LOST_MS, and no switch under way (its Minecraft server dropped the player, or its
+	 * Source server did, which takes Half-Life solo): the player goes back to the hub, Half-Life connecting to its
+	 * Source server and Minecraft to its own.
+	 */
+	private static void watchPair(long nowMs) {
+		if (hubSource == null || onHub || switching != null) {
+			lostSinceMs = 0;
+			return;
+		}
+		if (state == Proto.COOP_JOINED) {
+			lostSinceMs = 0;
+			return;
+		}
+		if (lostSinceMs == 0) {
+			lostSinceMs = nowMs;
+			return;
+		}
+		if (nowMs - lostSinceMs < LOST_MS) {
+			return;
+		}
+		HalfCraft.LOG.warn("HalfCraft: this map's pair has been out of reach for {} s: back to the hub at {}", LOST_MS / 1000, hubSource);
+		crashed = true;
+		onHub = true;
+		lostSinceMs = 0;
+		switchTo(hubSource, hubMinecraftPort);
+		byte[] address = hubSource.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+		dev.halfcraft.link.HostLink.writeRender(Proto.REN_CONNECT, java.nio.ByteBuffer.wrap(address), null);
+	}
+
 	/** Once a frame, after HostClient read the HostState: one step toward what Half-Life wants. */
 	public static void frame(Minecraft minecraft, HostLink.HostState host) {
+		watchPair(System.currentTimeMillis());
 		CoopPlan.Wanted reported = new CoopPlan.Wanted(host.coopMode, host.coopIp, host.coopPort);
 		if (switching != null) {
 			// on the way to another pair: Half-Life's solo and its old server meanwhile are left alone

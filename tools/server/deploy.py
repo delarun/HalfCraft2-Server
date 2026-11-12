@@ -1,7 +1,7 @@
 """puts the halfcraft server's network on a linux machine (docs/server/PLAN.md, S4) and starts it as systemd services.
 
-python tools/server/deploy.py root@192.168.10.138            everything: files, services, start
-python tools/server/deploy.py root@192.168.10.138 --code     only halfcraft's own files (a new build), then restart
+python tools/server/deploy.py root@<server>          everything: files, services, start
+python tools/server/deploy.py root@<server> --code   only halfcraft's own files (a new build), then restart
 
 what goes there, under /srv/halfcraft (owned by the halfcraft user it makes):
   hl2dm-ds/   the dedicated server (this machine's HALFCRAFT_SRCDS folder: steam's app 232370 with the 64-bit srcds)
@@ -34,7 +34,7 @@ CACHE = REPO / ".cache" / "deploy"
 STAGE = REPO / "build" / "deploy"
 HL2_PARTS = ["hl2", "episodic", "ep2", "hl2_complete", "lostcoast"]
 FABRIC_INSTALLER = "1.1.0"
-MEMORY = "1536M"  # each pair's minecraft: a 4 GB machine runs the hub and one map
+MEMORY = os.environ.get("HALFCRAFT_MC_MEMORY", "1G")  # each pair's minecraft's heap (network.py's jvm flags keep it small)
 
 
 def run(command: list[str], **kwargs: object) -> None:
@@ -61,7 +61,7 @@ def download(url: str, path: Path, sha512: str | None = None) -> Path:
     return path
 
 
-def stage() -> Path:
+def stage(windows_zip: Path | None = None) -> Path:
     """halfcraft's own files as they go to repo/: tools, the game folder's place, minecraft's server, the package."""
     shutil.rmtree(STAGE, ignore_errors=True)
     repo = STAGE / "repo"
@@ -89,7 +89,7 @@ def stage() -> Path:
     (template / "eula.txt").write_text("eula=true\n")  # the user accepted minecraft's eula for the dev server
     (template / "ops.json").write_text("[]\n")
     # the client package the launcher fetches
-    network.package()
+    network.package(windows_zip)
     shutil.copytree(network.CLIENT, repo / "build" / "network" / "client")
     # the source servers' rcon password (srcds.py, rcon.py), the one the minecraft servers' properties have
     (repo / "build" / "server").mkdir(parents=True)
@@ -113,9 +113,36 @@ ExecStart=/usr/bin/python3 {target}/repo/tools/server/network.py start hub
 ExecStop=/usr/bin/python3 {target}/repo/tools/server/network.py stop
 KillMode=process
 TimeoutStopSec=60
+# the kernel killing a pair for memory takes that pair alone: the others play on, its players go back to the hub,
+# and halfcraft-watchdog brings the hub back if it was the one
+OOMPolicy=continue
 
 [Install]
 WantedBy=multi-user.target
+"""
+
+WATCHDOG = """\
+[Unit]
+Description=HalfCraft 2 network watchdog: the hub's pair back if it went down
+
+[Service]
+Type=oneshot
+User=halfcraft
+Environment=HALFCRAFT_SRCDS={target}/hl2dm-ds HALFCRAFT_MC_MEMORY={memory} HOME={target}
+WorkingDirectory={target}/repo
+ExecStart=/usr/bin/python3 {target}/repo/tools/server/network.py start hub
+"""
+
+WATCHDOG_TIMER = """\
+[Unit]
+Description=HalfCraft 2 network watchdog, every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target
 """
 
 PACKAGE_SERVICE = """\
@@ -134,8 +161,8 @@ WantedBy=multi-user.target
 """
 
 
-def deploy(host: str, *, code_only: bool) -> None:
-    repo = stage()
+def deploy(host: str, *, code_only: bool, windows_zip: Path | None = None) -> None:
+    repo = stage(windows_zip)
     srcds = os.environ.get("HALFCRAFT_SRCDS")
     if not srcds:
         raise ToolError("name this machine's dedicated server folder: HALFCRAFT_SRCDS")
@@ -182,6 +209,10 @@ cat > /etc/systemd/system/halfcraft-network.service <<'UNIT'
 {SERVICES.format(target=TARGET, memory=MEMORY)}UNIT
 cat > /etc/systemd/system/halfcraft-package.service <<'UNIT'
 {PACKAGE_SERVICE.format(target=TARGET)}UNIT
+cat > /etc/systemd/system/halfcraft-watchdog.service <<'UNIT'
+{WATCHDOG.format(target=TARGET, memory=MEMORY)}UNIT
+cat > /etc/systemd/system/halfcraft-watchdog.timer <<'UNIT'
+{WATCHDOG_TIMER}UNIT
 chown -R halfcraft:halfcraft {TARGET}
 systemctl daemon-reload
 systemctl enable --now halfcraft-package >/dev/null
@@ -189,6 +220,7 @@ systemctl enable halfcraft-network >/dev/null
 systemctl restart halfcraft-package
 sudo -u halfcraft env HALFCRAFT_SRCDS={TARGET}/hl2dm-ds python3 repo/tools/server/network.py layout
 systemctl restart halfcraft-network
+systemctl enable --now halfcraft-watchdog.timer >/dev/null
 systemctl --no-pager status halfcraft-network halfcraft-package | grep -E "Active|Main PID" || true
 """,
     )
@@ -199,8 +231,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="the halfcraft server's network on a linux machine, as systemd services")
     parser.add_argument("host", help="user@machine (root: it makes the halfcraft user and the services)")
     parser.add_argument("--code", action="store_true", help="only halfcraft's own files (a new build), then restart")
+    parser.add_argument("--windows-zip", type=Path, help="the windows game folder for the client package (ci's HalfCraft-client-windows zip)")
     options = parser.parse_args()
-    deploy(options.host, code_only=options.code)
+    deploy(options.host, code_only=options.code, windows_zip=options.windows_zip)
 
 
 if __name__ == "__main__":

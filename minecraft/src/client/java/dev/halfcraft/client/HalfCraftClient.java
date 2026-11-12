@@ -27,6 +27,8 @@ public final class HalfCraftClient implements ClientModInitializer {
 		// dip into a voxel and teleports the player back every few ticks.
 		dev.halfcraft.world.HostCollision.setSmoothCollider(e -> e instanceof net.minecraft.world.entity.player.Player && HostClient.linked());
 		// on the halfcraft server, half-life's collision comes from the server, which relays its source server's
+		net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.registerGlobalReceiver(dev.halfcraft.network.Network.InfoPayload.TYPE,
+			(payload, context) -> CoopClient.network(context.client(), payload.hubSource(), payload.hubMinecraftPort(), payload.hubHere()));
 		// the halfcraft server sends the player to another map's pair: their Half-Life connects, Minecraft follows
 		net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.registerGlobalReceiver(dev.halfcraft.network.Network.ConnectPayload.TYPE,
 			(payload, context) -> {

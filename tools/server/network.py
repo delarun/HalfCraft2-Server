@@ -59,7 +59,11 @@ TEMPLATE = MINECRAFT / "run" / "server"  # make mc-server's folder: its server.p
 # java 25: HALFCRAFT_JAVA, else this machine's openjdk 25, else the one on the path
 JAVA = Path(os.environ.get("HALFCRAFT_JAVA") or next((str(p) for p in (Path("/usr/lib/jvm/java-25-openjdk/bin/java"),
             Path("/usr/lib/jvm/java-25-openjdk-amd64/bin/java")) if p.exists()), shutil.which("java") or "java"))  # fmt: skip
-MEMORY = os.environ.get("HALFCRAFT_MC_MEMORY", "2G")  # each pair's minecraft's heap
+MEMORY = os.environ.get("HALFCRAFT_MC_MEMORY", "1G")  # each pair's minecraft's heap
+# a pair's minecraft as small as it plays: the serial collector (G1's regions and threads cost more on a server this
+# size), a heap that gives back what it doesn't use, compact object headers (java 25), bounded metaspace and code cache
+JVM_MEMORY = ["-Xms128M", "-XX:+UseSerialGC", "-XX:MinHeapFreeRatio=10", "-XX:MaxHeapFreeRatio=30", "-XX:+UseCompactObjectHeaders",
+              "-XX:MaxMetaspaceSize=320M", "-XX:ReservedCodeCacheSize=96M", "-Xss512k"]  # fmt: skip
 # a production server's minecraft (tools/server/deploy.py): fabric's server launcher and the mods beside it, instead
 # of the dev build's classes
 PRODUCTION = MINECRAFT / "server"
@@ -121,6 +125,8 @@ def layout() -> None:
         properties.update({
             "server-port": str(pair["minecraft"]), "query.port": str(pair["minecraft"]), "rcon.port": str(pair["rcon"]),
             "level-name": WORLD, "accepts-transfers": "true", "motd": f"HalfCraft 2: {pair['map']}",
+            # half-life's maps are small: no far chunks to hold
+            "view-distance": "5", "simulation-distance": "4",
         })  # fmt: skip
         (here / "server.properties").write_text("".join(f"{k}={v}\n" for k, v in properties.items()))
         # minecraft refuses a world with symlinks it isn't told about: the shared players' folder is one
@@ -211,14 +217,23 @@ def start(pair: dict, srcds: str | None) -> None:
             if not mods.is_symlink():
                 shutil.rmtree(mods, ignore_errors=True)
                 mods.symlink_to(PRODUCTION / "mods")
-            command = [str(JAVA), f"-Xmx{MEMORY}", "--enable-native-access=ALL-UNNAMED", "-Dfile.encoding=UTF-8", "-jar", str(PRODUCTION_JAR), "nogui"]
+            command = [
+                str(JAVA),
+                f"-Xmx{MEMORY}",
+                *JVM_MEMORY,
+                "--enable-native-access=ALL-UNNAMED",
+                "-Dfile.encoding=UTF-8",
+                "-jar",
+                str(PRODUCTION_JAR),
+                "nogui",
+            ]
         else:
             if not (MINECRAFT / "build" / "loom-cache" / "argFiles" / "runServer").exists():
                 raise ToolError("no runServer argfile: run make mc-server once first")
             argfile, config = snapshot()
             command = [str(JAVA), f"-Dfabric.dli.config={config}", "-Dfabric.dli.env=server",
                        "-Dfabric.dli.main=net.fabricmc.loader.impl.launch.knot.KnotServer", f"@{argfile}", "--enable-native-access=ALL-UNNAMED",
-                       "--sun-misc-unsafe-memory-access=allow", "-Dfile.encoding=UTF-8", f"-Xmx{MEMORY}", "net.fabricmc.devlaunchinjector.Main", "nogui"]  # fmt: skip
+                       "--sun-misc-unsafe-memory-access=allow", "-Dfile.encoding=UTF-8", f"-Xmx{MEMORY}", *JVM_MEMORY, "net.fabricmc.devlaunchinjector.Main", "nogui"]  # fmt: skip
         env = {
             **os.environ,
             "HALFCRAFT_SERVER_LINKS": f"srv-{pair['name']}",

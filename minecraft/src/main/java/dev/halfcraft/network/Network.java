@@ -66,12 +66,24 @@ public final class Network {
 		}
 	}
 
+	/** The pair tells a player's Minecraft where the hub is, and whether it's the hub (CoopClient: back there if a map's pair goes down). */
+	public record InfoPayload(String hubSource, int hubMinecraftPort, boolean hubHere) implements CustomPacketPayload {
+		public static final Type<InfoPayload> TYPE = new Type<>(Identifier.fromNamespaceAndPath(HalfCraft.MOD_ID, "network"));
+		public static final StreamCodec<ByteBuf, InfoPayload> CODEC = StreamCodec.composite(ByteBufCodecs.STRING_UTF8, InfoPayload::hubSource,
+			ByteBufCodecs.VAR_INT, InfoPayload::hubMinecraftPort, ByteBufCodecs.BOOL, InfoPayload::hubHere, InfoPayload::new);
+
+		@Override
+		public Type<? extends CustomPacketPayload> type() {
+			return TYPE;
+		}
+	}
+
 	public static final String HUB = "hub";
 	private static final Gson GSON = new Gson();
 	/** Ticks after a player joins a pair before the place they came for is theirs: Half-Life's spawn teleport first. */
 	private static final int ARRIVAL_TICKS = 100;
 	/** How often the hub looks for maps' pairs nobody is on, and how long nobody has to be on one before it stops. */
-	private static final int IDLE_CHECK_TICKS = 20 * 60, IDLE_MINUTES = 10;
+	private static final int IDLE_CHECK_TICKS = 20 * 60, IDLE_MINUTES = 3;
 
 	private static @Nullable Path folder;
 	private static String host = "127.0.0.1";
@@ -90,11 +102,22 @@ public final class Network {
 	/** Both sides: the payload's type. The server (in a network): its commands, the arrivals, and the hub's portals. */
 	public static void register() {
 		PayloadTypeRegistry.clientboundPlay().register(ConnectPayload.TYPE, ConnectPayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(InfoPayload.TYPE, InfoPayload.CODEC);
 		load();
 		CommandRegistrationCallback.EVENT.register((dispatcher, registry, environment) -> commands(dispatcher));
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
 			LEAVING.remove(handler.getPlayer().getUUID());
 			ARRIVING.put(handler.getPlayer().getUUID(), ticks + ARRIVAL_TICKS);
+			Pair hub = pair(HUB);
+			if (active() && hub != null && ServerPlayNetworking.canSend(handler.getPlayer(), InfoPayload.TYPE)) {
+				ServerPlayNetworking.send(handler.getPlayer(), new InfoPayload(host + ":" + hub.srcds(), hub.minecraft(), HUB.equals(current)));
+			}
+		});
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+			if (active()) {
+				// a pair holds no chunks around the world's spawn: memory for the maps' players
+				server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(), "gamerule spawn_chunk_radius 0");
+			}
 		});
 		ServerTickEvents.END_SERVER_TICK.register(Network::tick);
 	}
