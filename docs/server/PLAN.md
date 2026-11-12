@@ -70,6 +70,24 @@
 | **S3** | Highway 17 | Six servers, six slots, portals at the transitions. A player walks from `d2_coast_01` to `d2_coast_08` and back. The buggy. |
 | **S4** | Running it | One command (systemd units or compose) starts and stops all of it. Configuration, a whitelist, backups. A client package for players. |
 
+## S3 design: the hub and the maps' servers (2026-11-12)
+
+The user's choice: players arrive in a **hub** on a ready-made Half-Life 2 map (`background02`, a coast scene from
+Half-Life 2's menu), with Minecraft portals to each Highway 17 map.
+
+- **Servers.** Seven `srcds_linux64`: the hub on 27015 (link `srv-hub`), then `d2_coast_01`, `03`, `04`, `05`, `07`,
+  `08` on 27016-27021 (links `srv-d2_coast_01`, ...). One Minecraft server opens all seven links
+  (`HALFCRAFT_SERVER_LINKS`). `make servers` starts them all, `make servers-stop` stops them.
+- **Collision per map.** Each map lives in its own slot along x (`MAP_SLOT_BLOCKS` 1024 apart), so the Minecraft
+  server keeps one collision store per slot and a consumer per link; what asks for collision at a position gets its
+  slot's. A link's epoch clears only its own slot.
+- **Which map a player is on.** Each `server.so` lists its players (Source userid, Minecraft name) in its link; the
+  Minecraft server routes a player's events, tables and payloads to the link that lists them.
+- **A portal.** A frame of Minecraft blocks in the hub, one per map, named on a sign. Stepping in: the Minecraft server
+  tells the player's Minecraft (S2C) to tell its Half-Life (`kStrConnect`) to `connect` to that map's server. Once
+  the player spawns there, the usual spawn teleport moves their Minecraft player into that map's slot. On each map, a
+  portal back to the hub at its spawn; later, portals at the `trigger_changelevel`s between the maps.
+
 ## Decisions (the user's, 2026-11-12)
 
 | Question | Decision |
