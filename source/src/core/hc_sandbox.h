@@ -6,7 +6,10 @@
 // restarts its map wants the place and its enemies, not the story. what goes:
 //
 //   - the story's own classes (STORY_CLASSES, ai_goal_*), the g-man, level changes (portals replace them);
-//   - a vehicle's lock: its VehicleLocked key, and every output that locks a vehicle or turns it off.
+//   - a vehicle's lock: its VehicleLocked key, and every output that locks a vehicle or turns it off;
+//   - a prop's fading with distance (fademindist, fademaxdist; fadescale 0): the client works a prop's fade out once
+//     a frame, in the first view that draws it, and on the coast that's the water's reflection, seen from under the
+//     water, which faded the map's props out of the player's own view whenever water was in it.
 //
 // enemies, triggers and relays stay, and the map's enemies come back after they die (respawnable, respawn_due). pure: no sdk, no windows, tested by tools/debug/core_tests.cpp.
 
@@ -151,6 +154,7 @@ namespace halfcraft::sandbox
 		int removed = 0;          // entities taken out
 		int unlocked = 0;         // vehicles whose lock key went
 		int outputs_removed = 0;  // outputs that locked or turned off a vehicle
+		int unfaded = 0;          // props that faded with distance and don't any more
 	};
 
 	/// the story taken out of a map's entities (the header says what).
@@ -178,6 +182,18 @@ namespace halfcraft::sandbox
 				continue;
 			}
 			const bool vehicle = classname.rfind("prop_vehicle_", 0) == 0 && classname != "prop_vehicle_crane";
+			// a prop draws at any distance (the header says why)
+			if (classname.rfind("prop_", 0) == 0 && classname.rfind("prop_vehicle_", 0) != 0) {
+				const auto faded = std::remove_if(entity.begin(), entity.end(), [](const KeyValue& kv) {
+					const std::string key = lower(kv.first);
+					return key == "fademindist" || key == "fademaxdist" || key == "fadescale";
+				});
+				if (faded != entity.end()) {
+					++report.unfaded;
+					entity.erase(faded, entity.end());
+				}
+				entity.emplace_back("fadescale", "0");
+			}
 			entity.erase(std::remove_if(entity.begin(), entity.end(),
 							 [&](const KeyValue& kv) {
 								 const std::string key = lower(kv.first);
@@ -212,9 +228,24 @@ namespace halfcraft::sandbox
 	inline bool respawnable(std::string_view classname, int spawnflags)
 	{
 		static const std::vector<std::string_view> enemies{
-			"npc_combine_s", "npc_metropolice", "npc_antlion", "npc_antlion_worker", "npc_zombie", "npc_zombie_torso", "npc_zombine",
-			"npc_fastzombie", "npc_fastzombie_torso", "npc_poisonzombie", "npc_headcrab", "npc_headcrab_fast", "npc_headcrab_black",
-			"npc_headcrab_poison", "npc_rollermine", "npc_manhack", "npc_barnacle", "npc_cscanner",
+			"npc_combine_s",
+			"npc_metropolice",
+			"npc_antlion",
+			"npc_antlion_worker",
+			"npc_zombie",
+			"npc_zombie_torso",
+			"npc_zombine",
+			"npc_fastzombie",
+			"npc_fastzombie_torso",
+			"npc_poisonzombie",
+			"npc_headcrab",
+			"npc_headcrab_fast",
+			"npc_headcrab_black",
+			"npc_headcrab_poison",
+			"npc_rollermine",
+			"npc_manhack",
+			"npc_barnacle",
+			"npc_cscanner",
 		};
 		const std::string name = lower(classname);
 		return (spawnflags & SPAWNFLAG_TEMPLATE) == 0 && std::find(enemies.begin(), enemies.end(), name) != enemies.end();

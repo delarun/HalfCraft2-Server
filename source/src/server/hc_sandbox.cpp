@@ -202,8 +202,8 @@ namespace halfcraft
 		g_kept = sandbox::apply(sandbox::parse(entities), report);
 		g_entities = sandbox::serialize(g_kept);
 		g_applied = true;
-		log_info("sandbox: %s without its story: %d entities out, %d vehicle(s) unlocked, %d output(s) that lock a vehicle out", map ? map : "?",
-			report.removed, report.unlocked, report.outputs_removed);
+		log_info("sandbox: %s without its story: %d entities out, %d vehicle(s) unlocked, %d output(s) that lock a vehicle out, %d prop(s) unfaded",
+			map ? map : "?", report.removed, report.unlocked, report.outputs_removed, report.unfaded);
 		return g_entities.c_str();
 	}
 }

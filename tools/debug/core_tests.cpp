@@ -1688,6 +1688,14 @@ namespace
 		CHECK(!respawn_due(100.0, 280.0, 180.0, 400.0, 1500.0) && respawn_due(100.0, 280.0, 180.0, 1500.0, 1500.0));
 		// a lump cut short ends the list there
 		CHECK(parse("{\n\"a\" \"b\"\n}\n{\n\"c\" \"d").size() == 1);
+		// a prop draws at any distance: its fade keys go, fadescale 0 comes; a vehicle keeps its own
+		Report faded;
+		const auto props = apply(parse("{\n\"classname\" \"prop_physics\"\n\"fademindist\" \"3000\"\n\"FadeMaxDist\" \"3500\"\n\"fadescale\" \"1\"\n}\n"
+									   "{\n\"classname\" \"prop_dynamic\"\n}\n{\n\"classname\" \"prop_vehicle_jeep\"\n\"fadescale\" \"1\"\n}\n"),
+			faded);
+		CHECK(faded.unfaded == 1 && props.size() == 3);
+		CHECK(value_of(props[0], "fademindist").empty() && value_of(props[0], "fademaxdist").empty() && value_of(props[0], "fadescale") == "0");
+		CHECK(value_of(props[1], "fadescale") == "0" && value_of(props[2], "fadescale") == "1");
 	}
 
 	void test_link_names()
