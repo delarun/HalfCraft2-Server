@@ -9,7 +9,7 @@ namespace halfcraft::proto
 {
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	inline constexpr std::uint32_t kLayout = 0xBE1A5063;
+	inline constexpr std::uint32_t kLayout = 0x0D10DA6A;
 
 	// ---- where each part of the mapping is ----------------------------------------------------------
 	inline constexpr std::uint64_t kOffHeader = 0x00;
@@ -991,6 +991,10 @@ namespace halfcraft::proto
 		// Sent after its kRenSection and whenever they change; count 0: none, and no
 		// bitset follows. kRenClearAll drops them too
 		kRenDug = 11,
+		// (the halfcraft server's) the address of another map's Source server, as text ("<ip>:<port>"): the host
+		// connects to it (a portal, /hub, /home). Its Minecraft follows on its own: the new server names its
+		// Minecraft's port (hc_server_mc_port)
+		kRenConnect = 12,
 	};
 
 	enum RagdollPart : std::uint32_t

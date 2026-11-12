@@ -16,6 +16,7 @@
 
 #include "tier0/valve_minmax_off.h"
 #include <algorithm>
+#include <string>
 #include <cmath>
 
 #include "client/hc_block_lights.h"
@@ -39,6 +40,21 @@ namespace halfcraft
 {
 	namespace
 	{
+		/// kRenConnect: the halfcraft server sends the player to another map's source server ("<ip>:<port>", digits, dots
+		/// and a colon only: nothing else goes into the console)
+		void connect_to(const std::uint8_t* payload, std::uint32_t bytes)
+		{
+			std::string address(reinterpret_cast<const char*>(payload), bytes);
+			const bool  plain = !address.empty() && address.size() < 64 &&
+				std::all_of(address.begin(), address.end(), [](char c) { return (c >= '0' && c <= '9') || c == '.' || c == ':'; });
+			if (!plain) {
+				log_warning("kRenConnect: not an address, left alone");
+				return;
+			}
+			log_info("the halfcraft server sends the player to %s", address.c_str());
+			engine->ClientCmd_Unrestricted(("connect " + address).c_str());
+		}
+
 		constexpr float         PI = 3.14159265f;
 		constexpr float         TELEPORT_THRESHOLD = 160.0f;  // units; bigger jumps are source moving the player
 		constexpr float         HOLD_MISMATCH_BLOCKS = 8.0f;   // minecraft waiting this far away is waiting in the wrong place
@@ -312,6 +328,10 @@ namespace halfcraft
 			// minecraft's meshes, atlas and the rest of what it draws through us
 			s.link.drain_render(
 				[](std::uint32_t type, const std::uint8_t* payload, std::uint32_t bytes) {
+					if (type == proto::kRenConnect) {
+						connect_to(payload, bytes);
+						return;
+					}
 					blocks_on_message(type, payload, bytes);
 					dig_on_message(type, payload, bytes);
 					things_on_message(type, payload, bytes);

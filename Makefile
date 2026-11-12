@@ -83,14 +83,14 @@ cmd:
 server:
 	$(PYTHON) tools/server/srcds.py run --map $(or $(MAP),d2_coast_01) $(if $(PORT),--port $(PORT)) --log build/server/srcds-$(or $(PORT),27015).log
 
-servers:
-	$(PYTHON) tools/server/servers.py start
+network:
+	$(PYTHON) tools/server/network.py start
 
-servers-stop:
-	$(PYTHON) tools/server/servers.py stop
+network-stop:
+	$(PYTHON) tools/server/network.py stop
 
-mc-server-all:
-	HALFCRAFT_SERVER_LINKS=$$($(PYTHON) tools/server/servers.py links) $(PYTHON) tools/build/gradle.py runServer
+network-status:
+	$(PYTHON) tools/server/network.py status
 
 server-layout:
 	$(PYTHON) tools/server/srcds.py layout

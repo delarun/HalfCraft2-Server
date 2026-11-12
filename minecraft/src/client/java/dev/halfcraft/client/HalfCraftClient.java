@@ -27,6 +27,16 @@ public final class HalfCraftClient implements ClientModInitializer {
 		// dip into a voxel and teleports the player back every few ticks.
 		dev.halfcraft.world.HostCollision.setSmoothCollider(e -> e instanceof net.minecraft.world.entity.player.Player && HostClient.linked());
 		// on the halfcraft server, half-life's collision comes from the server, which relays its source server's
+		// the halfcraft server sends the player to another map's pair: their Half-Life connects, Minecraft follows
+		net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.registerGlobalReceiver(dev.halfcraft.network.Network.ConnectPayload.TYPE,
+			(payload, context) -> {
+				byte[] address = payload.address().getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+				if (!dev.halfcraft.link.HostLink.writeRender(dev.halfcraft.link.Proto.REN_CONNECT, java.nio.ByteBuffer.wrap(address), null)) {
+					dev.halfcraft.HalfCraft.LOG.warn("HalfCraft: couldn't tell Half-Life to connect to {}", payload.address());
+				} else {
+					dev.halfcraft.HalfCraft.LOG.info("HalfCraft: Half-Life connects to {}", payload.address());
+				}
+			});
 		net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.registerGlobalReceiver(dev.halfcraft.world.CollisionRelay.TYPE, (payload, context) -> {
 			for (dev.halfcraft.world.CollisionRelay.Message message : payload.messages()) {
 				dev.halfcraft.world.HostCollision.applyRelayed(message.type(), message.bytes());

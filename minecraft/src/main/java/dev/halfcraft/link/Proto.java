@@ -10,7 +10,7 @@ public final class Proto {
 
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	public static final int LAYOUT = 0xBE1A5063;
+	public static final int LAYOUT = 0x0D10DA6A;
 
 	// ---- where each part of the mapping is
 	public static final long OFF_HEADER = 0x00;
@@ -893,6 +893,10 @@ public final class Proto {
 	// Sent after its REN_SECTION and whenever they change; count 0: none, and no
 	// bitset follows. REN_CLEAR_ALL drops them too
 	public static final int REN_DUG = 11;
+	// (the halfcraft server's) the address of another map's Source server, as text ("<ip>:<port>"): the host
+	// connects to it (a portal, /hub, /home). Its Minecraft follows on its own: the new server names its
+	// Minecraft's port (hc_server_mc_port)
+	public static final int REN_CONNECT = 12;
 
 	// RagdollPart
 	public static final int PART_NONE = 0;

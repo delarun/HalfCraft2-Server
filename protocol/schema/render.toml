@@ -50,6 +50,10 @@ Minecraft has dug out of the host's map (its halfcraft:dug attachment): the host
 stops drawing its walls there and cuts them out of the collision it sends.
 Sent after its kRenSection and whenever they change; count 0: none, and no
 bitset follows. kRenClearAll drops them too""" }
+kRenConnect = { value = 12, doc = """
+(the halfcraft server's) the address of another map's Source server, as text ("<ip>:<port>"): the host
+connects to it (a portal, /hub, /home). Its Minecraft follows on its own: the new server names its
+Minecraft's port (hc_server_mc_port)""" }
 
 [enums.RagdollPart]
 type = "u32"
