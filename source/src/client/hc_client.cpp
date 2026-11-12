@@ -16,6 +16,7 @@
 
 #include "tier0/valve_minmax_off.h"
 #include <algorithm>
+#include <cstdio>
 #include <string>
 #include <cmath>
 
@@ -40,6 +41,31 @@ namespace halfcraft
 {
 	namespace
 	{
+		/// hc_cmd.txt in the game folder (a developer's, on linux, where nothing else reaches the console from outside):
+		/// once a second, its lines run as console commands and the file goes
+		void run_command_file()
+		{
+			static double next = 0.0;
+			const double  now = Plat_FloatTime();
+			if (now < next) {
+				return;
+			}
+			next = now + 1.0;
+			char path[MAX_PATH];
+			Q_snprintf(path, sizeof(path), "%s/hc_cmd.txt", engine->GetGameDirectory());
+			FILE* file = fopen(path, "r");
+			if (!file) {
+				return;
+			}
+			char line[512];
+			while (fgets(line, sizeof(line), file)) {
+				log_info("hc_cmd.txt: %s", line);
+				engine->ClientCmd_Unrestricted(line);
+			}
+			fclose(file);
+			remove(path);
+		}
+
 		/// kRenConnect: the halfcraft server sends the player to another map's source server ("<ip>:<port>", digits, dots
 		/// and a colon only: nothing else goes into the console)
 		void connect_to(const std::uint8_t* payload, std::uint32_t bytes)
@@ -326,6 +352,7 @@ namespace halfcraft
 			}
 
 			// minecraft's meshes, atlas and the rest of what it draws through us
+			run_command_file();
 			s.link.drain_render(
 				[](std::uint32_t type, const std::uint8_t* payload, std::uint32_t bytes) {
 					if (type == proto::kRenConnect) {
