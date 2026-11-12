@@ -50,14 +50,14 @@ public final class HostDigClient {
 	/**
 	 * The cell of Half-Life's wall under the crosshair that attacking would mine, or null: none is hit,
 	 * Half-Life lets nothing be dug, the player holds Half-Life's weapon or plays a mode that can't build, the face
-	 * isn't diggable, or the cell is dug already or a Minecraft block fills it. Only the integrated
-	 * server opens a cell.
+	 * isn't diggable, or the cell is dug already or a Minecraft block fills it. The integrated server opens a
+	 * cell, or the HalfCraft server (DigPayload).
 	 */
 	public static @Nullable BlockPos target(Minecraft minecraft) {
 		ClientLevel level = minecraft.level;
 		LocalPlayer player = minecraft.player;
 		if (!(minecraft.hitResult instanceof HostClip.HostHitResult result) || level == null || player == null || minecraft.gameMode == null
-			|| minecraft.getSingleplayerServer() == null) {
+			|| (minecraft.getSingleplayerServer() == null && !net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.canSend(dev.halfcraft.world.DigPayload.TYPE))) {
 			return null;
 		}
 		if (!HostClient.linked() || HostClient.host().digOff() || !HostNav.inMirror(level)) {
@@ -119,6 +119,11 @@ public final class HostDigClient {
 	private static void open(Minecraft minecraft, LocalPlayer player, BlockPos pos, int material) {
 		HalfCraft.LOG.info("HalfCraft: dug Half-Life's wall at {} ({})", pos.toShortString(), DigMaterials.blockId(material));
 		IntegratedServer server = minecraft.getSingleplayerServer();
+		if (server == null) {
+			// the halfcraft server's
+			net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new dev.halfcraft.world.DigPayload(pos, material));
+			return;
+		}
 		UUID uuid = player.getUUID();
 		server.execute(() -> {
 			ServerPlayer sp = server.getPlayerList().getPlayer(uuid);

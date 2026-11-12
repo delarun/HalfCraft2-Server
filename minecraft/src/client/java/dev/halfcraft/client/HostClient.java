@@ -333,6 +333,9 @@ public final class HostClient {
 					sp.resetFallDistance();
 				}
 			});
+		} else if (net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.canSend(dev.halfcraft.link.TeleportPayload.TYPE)) {
+			// the halfcraft server's: it puts the player there itself
+			net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new dev.halfcraft.link.TeleportPayload(x, y, z, yaw, pitch));
 		}
 		HalfCraft.LOG.info("HalfCraft: teleported to {} {} {}", x, y, z);
 	}
