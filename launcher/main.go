@@ -18,7 +18,14 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	webview "github.com/webview/webview_go"
 )
+
+func init() {
+	// the window's toolkit (gtk, win32) runs on the main thread
+	runtime.LockOSThread()
+}
 
 // Version is the launcher's own.
 const Version = "0.1.0"
@@ -254,7 +261,7 @@ func openBrowser(url string) {
 
 func main() {
 	server := flag.String("server", "", "the HalfCraft server (host or host:port), saved for next time")
-	noBrowser := flag.Bool("no-browser", false, "don't open the page; print its address")
+	browser := flag.Bool("browser", false, "show the launcher in the browser instead of a window of its own")
 	testMinecraft := flag.Bool("test-minecraft", false, "a developer's: install, then start Minecraft alone with an offline player")
 	prepare := flag.Bool("prepare", false, "install what playing needs (the server's package, Minecraft, Fabric, Java), then exit")
 	flag.Parse()
@@ -325,13 +332,25 @@ func main() {
 	}
 	address := "http://" + listener.Addr().String() + "/"
 	log.Printf("HalfCraft launcher %s: %s (folder %s)", Version, address, l.root)
-	if *noBrowser {
-		fmt.Println(address)
-	} else {
-		openBrowser(address)
-	}
 	srv := &http.Server{Handler: guard(mux), ReadHeaderTimeout: 10 * time.Second}
-	log.Fatal(srv.Serve(listener))
+	if *browser {
+		openBrowser(address)
+		log.Fatal(srv.Serve(listener))
+	}
+	go func() { log.Fatal(srv.Serve(listener)) }()
+	// a window of its own showing the page (webkit2gtk on linux, webview2 on windows); closing it ends the launcher,
+	// and the games it started go on
+	window := webview.New(false)
+	if window == nil {
+		log.Print("no window (webkit2gtk or webview2 missing): the browser instead")
+		openBrowser(address)
+		select {}
+	}
+	defer window.Destroy()
+	window.SetTitle("HalfCraft")
+	window.SetSize(820, 760, webview.HintNone)
+	window.Navigate(address)
+	window.Run()
 }
 
 // guard keeps the page's api to this machine's own page: the Host must be localhost's (no other site's name resolved to

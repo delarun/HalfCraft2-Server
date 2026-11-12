@@ -99,8 +99,10 @@ network-serve:
 	$(PYTHON) tools/server/network.py serve
 
 launcher:
-	cd launcher && go vet ./... && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o ../dist/halfcraft-launcher . \
-		&& GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -H windowsgui" -o ../dist/HalfCraft.exe .
+	cd launcher && PKG_CONFIG_PATH=$$PWD/cgo/pkgconfig go vet ./... \
+		&& PKG_CONFIG_PATH=$$PWD/cgo/pkgconfig CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o ../dist/halfcraft-launcher . \
+		&& CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ CGO_CXXFLAGS="-I$$PWD/cgo/mingw" \
+			go build -trimpath -ldflags "-s -w -H windowsgui" -o ../dist/HalfCraft.exe .
 
 server-layout:
 	$(PYTHON) tools/server/srcds.py layout

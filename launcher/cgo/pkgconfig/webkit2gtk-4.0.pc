@@ -1,0 +1,5 @@
+# webview_go asks pkg-config for webkit2gtk-4.0; today's systems have 4.1, the same api over libsoup 3
+Name: webkit2gtk-4.0
+Description: webkit2gtk-4.1 under the name webview_go asks for
+Version: 2.54
+Requires: webkit2gtk-4.1
