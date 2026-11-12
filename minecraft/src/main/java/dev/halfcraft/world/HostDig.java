@@ -309,8 +309,10 @@ public final class HostDig {
 				waiting = true; // its chunk of Minecraft's underground is being generated: revealed on a later try
 				continue;
 			}
-			if (state.isAir() && !nearPlayer(level, cell, CAVE_REACH)) {
-				// a cave this far from everyone stays rock for now: it opens on as a player comes near (FRONTIER)
+			if (state.isAir() && (!nearPlayer(level, cell, CAVE_REACH) || !DigRules.allKnown(cells(level), r.x(), r.y(), r.z()))) {
+				// a cave this far from everyone stays rock for now, and one where Half-Life hasn't described the rock
+				// around (opened, its sides would be nothing, neither rock nor block): it opens on as a player comes near
+				// (FRONTIER), and the collision streamed around them makes it known
 				if (FRONTIER.size() < FRONTIER_MAX) {
 					FRONTIER.put(new Cell(level, pos.immutable()), material);
 				}
