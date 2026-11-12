@@ -25,6 +25,8 @@ namespace
 	constexpr char PROP_CLASSNAME[] = "halfcraft_block_prop";
 	// a hair under a block: it fits back into its cell, and the gun's own traces don't start in a neighbour
 	constexpr float HALF = static_cast<float>(halfcraft::UNITS_PER_BLOCK) * 0.5f - 0.5f;
+	constexpr float ITEM_HALF = static_cast<float>(halfcraft::UNITS_PER_BLOCK) * 0.2f;  // an item's cube: 0.4 of a block
+	constexpr float ITEM_KG = 4.0f;
 	constexpr float TAKE_INTERVAL = 0.25f;  // the gun asks every frame it looks at a wall: one block at a time
 	constexpr float REST_SPEED = 4.0f;      // units a second: slower than this, it's at rest
 	constexpr float REST_SPIN = 10.0f;      // degrees a second
@@ -88,7 +90,8 @@ public:
 	void Spawn(void) override
 	{
 		BaseClass::Spawn();
-		const Vector half(HALF, HALF, HALF);
+		const float  size = m_bItem ? ITEM_HALF : HALF;
+		const Vector half(size, size, size);
 		m_pCollide = physcollision->BBoxToCollide(-half, half);
 		SetSolid(SOLID_VPHYSICS);
 		// no model to trace against: traces (the gravity gun finding it again, bullets) come to TestCollision
@@ -146,7 +149,7 @@ public:
 		if (index < 0)
 			index = physprops->GetSurfaceIndex("concrete");
 		object->SetMaterialIndex(index);
-		object->SetMass(surface.kg);
+		object->SetMass(m_bItem ? ITEM_KG : surface.kg);
 	}
 
 	/// the cube's centre as a minecraft block cell.
@@ -159,6 +162,7 @@ public:
 	}
 
 	CNetworkVar(int, m_iHeldSlot);
+	bool               m_bItem = false;  // one of minecraft's items, not a block: smaller, light, never snaps to a cell
 	halfcraft::MapSlot m_slot;
 	Phase              m_phase = Phase::kTaking;
 	int                m_taken[3] = {};    // the cell it came out of
@@ -224,6 +228,14 @@ SendPropInt(SENDINFO(m_iHeldSlot), 6, SPROP_UNSIGNED),
 		void land(CHalfCraftBlockProp* prop)
 		{
 			prop->CellOf(prop->m_cell);
+			if (prop->m_bItem) {
+				// an item drops where it lies, as minecraft drops it: no cell to snap to
+				prop->m_phase = Phase::kLanding;
+				prop->m_flDeadline = gpGlobals->curtime + NEWS_TIMEOUT;
+				push(proto::kInHeldBlockLanded, prop->m_iHeldSlot, prop->m_cell);
+				log_info("gravity gun: held item %d came to rest in block %d %d %d", prop->m_iHeldSlot.Get(), prop->m_cell[0], prop->m_cell[1], prop->m_cell[2]);
+				return;
+			}
 			const Vector centre = cell_centre(prop->m_cell, prop->m_slot);
 			prop->Teleport(&centre, &vec3_angle, &vec3_origin);
 			if (IPhysicsObject* object = prop->VPhysicsGetObject()) {
@@ -288,58 +300,94 @@ SendPropInt(SENDINFO(m_iHeldSlot), 6, SPROP_UNSIGNED),
 		}
 	}
 
-	CBaseEntity* take_block(const int cell[3], const Vector& velocity, CBaseEntity* wall)
+	namespace
 	{
-		const float now = gpGlobals->curtime;
-		if (g_last_take >= 0.0f && now >= g_last_take && now - g_last_take < TAKE_INTERVAL) {
-			return nullptr;
-		}
-		if (!client_push_input()) {
-			return nullptr;
-		}
-		// a free held slot, or the oldest one's cube goes (leaving its block as an item)
-		int slot = g_next;
-		for (int i = 0; i < static_cast<int>(kMaxHeldBlocks); ++i) {
-			const int candidate = (g_next + i) % kMaxHeldBlocks;
-			if (!g_props[candidate].Get()) {
-				slot = candidate;
-				break;
+		/// a new cube in a free held slot (or the oldest one's: its cube goes, leaving its block as an item), at `at`.
+		CHalfCraftBlockProp* new_cube(const Vector& at, const Vector& velocity, bool item)
+		{
+			int slot = g_next;
+			for (int i = 0; i < static_cast<int>(kMaxHeldBlocks); ++i) {
+				const int candidate = (g_next + i) % kMaxHeldBlocks;
+				if (!g_props[candidate].Get()) {
+					slot = candidate;
+					break;
+				}
 			}
-		}
-		g_next = (slot + 1) % kMaxHeldBlocks;
-		if (CHalfCraftBlockProp* old = g_props[slot].Get()) {
-			UTIL_Remove(old);
+			g_next = (slot + 1) % kMaxHeldBlocks;
+			if (CHalfCraftBlockProp* old = g_props[slot].Get()) {
+				UTIL_Remove(old);
+			}
+			auto* prop = static_cast<CHalfCraftBlockProp*>(CreateEntityByName(PROP_CLASSNAME));
+			if (!prop) {
+				log_error("couldn't create %s", PROP_CLASSNAME);
+				return nullptr;
+			}
+			prop->m_iHeldSlot = slot;
+			prop->m_bItem = item;
+			prop->m_slot = g_slot;
+			prop->m_flTakenAt = gpGlobals->curtime;
+			prop->SetAbsOrigin(at);
+			DispatchSpawn(prop);
+			prop->Activate();
+			if (velocity != vec3_origin) {
+				if (IPhysicsObject* object = prop->VPhysicsGetObject()) {
+					AngularImpulse spin(RandomFloat(-300.0f, 300.0f), RandomFloat(-300.0f, 300.0f), RandomFloat(-300.0f, 300.0f));
+					object->SetVelocity(&velocity, &spin);
+				}
+			}
+			g_props[slot] = prop;
+			g_last_take = gpGlobals->curtime;
+			return prop;
 		}
 
-		auto* prop = static_cast<CHalfCraftBlockProp*>(CreateEntityByName(PROP_CLASSNAME));
-		if (!prop) {
-			log_error("couldn't create %s", PROP_CLASSNAME);
+		/// whether the gun may take something now: one thing at a time, and only with minecraft there to tell
+		bool may_take()
+		{
+			const float now = gpGlobals->curtime;
+			if (g_last_take >= 0.0f && now >= g_last_take && now - g_last_take < TAKE_INTERVAL) {
+				return false;
+			}
+			return client_push_input() != nullptr;
+		}
+	}
+
+	CBaseEntity* take_block(const int cell[3], const Vector& velocity, CBaseEntity* wall)
+	{
+		if (!may_take()) {
 			return nullptr;
 		}
-		prop->m_iHeldSlot = slot;
-		prop->m_slot = g_slot;
+		CHalfCraftBlockProp* prop = new_cube(cell_centre(cell, g_slot), velocity, false);
+		if (!prop) {
+			return nullptr;
+		}
 		prop->m_taken[0] = cell[0];
 		prop->m_taken[1] = cell[1];
 		prop->m_taken[2] = cell[2];
-		prop->m_flTakenAt = now;
-		prop->SetAbsOrigin(cell_centre(cell, g_slot));
-		DispatchSpawn(prop);
-		prop->Activate();
 		// the block is in the wall's collision until minecraft's word that it's gone comes back round
 		if (wall) {
 			PhysDisableEntityCollisions(prop, wall);
 			prop->m_hWall = wall;
 		}
-		if (velocity != vec3_origin) {
-			if (IPhysicsObject* object = prop->VPhysicsGetObject()) {
-				AngularImpulse spin(RandomFloat(-300.0f, 300.0f), RandomFloat(-300.0f, 300.0f), RandomFloat(-300.0f, 300.0f));
-				object->SetVelocity(&velocity, &spin);
-			}
+		push(proto::kInTakeBlock, prop->m_iHeldSlot, cell);
+		log_info("gravity gun: block %d %d %d torn out into held slot %d%s", cell[0], cell[1], cell[2], prop->m_iHeldSlot.Get(),
+			velocity != vec3_origin ? " (punted)" : "");
+		return prop;
+	}
+
+	CBaseEntity* take_item(std::uint32_t mc_id, const Vector& at, const Vector& velocity)
+	{
+		if (!may_take()) {
+			return nullptr;
 		}
-		g_props[slot] = prop;
-		g_last_take = now;
-		push(proto::kInTakeBlock, slot, cell);
-		log_info("gravity gun: block %d %d %d torn out into held slot %d%s", cell[0], cell[1], cell[2], slot, velocity != vec3_origin ? " (punted)" : "");
+		CHalfCraftBlockProp* prop = new_cube(at, velocity, true);
+		if (!prop) {
+			return nullptr;
+		}
+		prop->CellOf(prop->m_taken);
+		if (PushInputFn push_input = client_push_input()) {
+			push_input(proto::kInTakeItem, prop->m_iHeldSlot, static_cast<int>(mc_id), 0, 0);
+		}
+		log_info("gravity gun: minecraft's item %u taken into held slot %d%s", mc_id, prop->m_iHeldSlot.Get(), velocity != vec3_origin ? " (punted)" : "");
 		return prop;
 	}
 

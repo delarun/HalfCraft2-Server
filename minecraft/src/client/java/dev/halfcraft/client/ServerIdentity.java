@@ -27,6 +27,9 @@ final class ServerIdentity {
 			waterSent = null;
 		});
 		ClientTickEvents.END_CLIENT_TICK.register(ServerIdentity::tick);
+		// what the gravity gun's held cubes are, which only the server knows
+		ClientPlayNetworking.registerGlobalReceiver(dev.halfcraft.world.HeldSync.TYPE, (payload, context) -> dev.halfcraft.world.HeldSync.received(payload));
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, minecraft) -> dev.halfcraft.world.HeldSync.clear());
 	}
 
 	private static void tick(Minecraft minecraft) {

@@ -97,6 +97,8 @@ public final class WorldExporter {
 	private static final DigWalls.Count NO_WALLS = new DigWalls.Count(0, 0, 0, 0L);
 	private static final float[] WALL_UV = new float[8]; // a wall quad's corners in the atlas
 	private static final float[] WALL_CORNERS = new float[12];
+	// a held item's cube side (blocks): server.dll's item cube, 0.4 of a block
+	private static final float HELD_ITEM_SIZE = 0.4F;
 	// how far a dug cell's wall sits behind its side (blocks; Half-Life's units: 40 a block), against z-fighting
 	private static final float WALL_INSET = 0.02F;
 	private static final List<ProtoStructs.WorldEntity> ENTITIES = new ArrayList<>();
@@ -423,13 +425,28 @@ public final class WorldExporter {
 
 	private static void exportEntities(Minecraft minecraft, ClientLevel level, float partialTick) {
 		ENTITIES.clear();
-		// blocks Half-Life's gravity gun holds, first: Half-Life draws them on its own cubes, by held slot
-		HeldBlocks.forEachHeld((slot, state) -> {
+		// blocks and items Half-Life's gravity gun holds, first: Half-Life draws them on its own cubes, by held slot. the
+		// integrated server's, or (another machine's server) what that server listed
+		java.util.function.BiConsumer<Integer, BlockState> heldBlock = (slot, state) -> {
 			float[] faces = cubeFaces(minecraft, state);
 			if (faces != null && ENTITIES.size() < Proto.MAX_WORLD_ENTITIES) {
 				ENTITIES.add(new ProtoStructs.WorldEntity(Proto.WE_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, null, faces, cubeTint(minecraft, state)));
 			}
-		});
+		};
+		java.util.function.BiConsumer<Integer, ItemStack> heldItem = (slot, stack) -> {
+			float[] faces = heldItemFaces(minecraft, level, stack);
+			if (faces != null && ENTITIES.size() < Proto.MAX_WORLD_ENTITIES) {
+				int tint = stack.getItem() instanceof BlockItem block ? cubeTint(minecraft, block.getBlock().defaultBlockState()) : 0;
+				ENTITIES.add(new ProtoStructs.WorldEntity(Proto.WE_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, HELD_ITEM_SIZE, null, faces, tint));
+			}
+		};
+		if (minecraft.getSingleplayerServer() != null) {
+			HeldBlocks.forEachHeld(heldBlock);
+			HeldBlocks.forEachHeldItem(heldItem);
+		} else {
+			dev.halfcraft.world.HeldSync.clientBlocks().forEach(heldBlock);
+			dev.halfcraft.world.HeldSync.clientItems().forEach(heldItem);
+		}
 		Vec3 eye = minecraft.player.getEyePosition(partialTick);
 		for (Entity e : level.entitiesForRendering()) {
 			if (ENTITIES.size() >= Proto.MAX_WORLD_ENTITIES || e.distanceToSqr(eye) > ENTITY_RANGE * ENTITY_RANGE) {
@@ -487,6 +504,32 @@ public final class WorldExporter {
 		if (uv != null) {
 			ENTITIES.add(new ProtoStructs.WorldEntity(Proto.WE_ITEM, e.getId(), (float) p.x, (float) p.y + 0.25F, (float) p.z, yaw, 0.0F, 0.5F, null, uv, 0));
 		}
+	}
+
+	/**
+	 * A held item's cube faces (side, top, bottom): a full block's own, anything else its icon on every side. Null
+	 * when it has none.
+	 */
+	private static float @Nullable [] heldItemFaces(Minecraft minecraft, ClientLevel level, ItemStack stack) {
+		if (stack.getItem() instanceof BlockItem blockItem) {
+			BlockState state = blockItem.getBlock().defaultBlockState();
+			if (state.getRenderShape() == RenderShape.MODEL
+				&& Block.isShapeFullBlock(state.getShape(net.minecraft.world.level.EmptyBlockGetter.INSTANCE, BlockPos.ZERO))) {
+				float[] faces = cubeFaces(minecraft, state);
+				if (faces != null) {
+					return faces;
+				}
+			}
+		}
+		float[] uv = iconUv(minecraft, level, stack);
+		if (uv == null) {
+			return null;
+		}
+		float[] faces = new float[12];
+		for (int f = 0; f < 3; f++) {
+			System.arraycopy(uv, 0, faces, f * 4, 4);
+		}
+		return faces;
 	}
 
 	/** Side, top and bottom atlas rects of a full-cube block's model, cached per block state. */

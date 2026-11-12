@@ -54,6 +54,8 @@ public final class HalfCraft implements ModInitializer {
 		dev.halfcraft.link.ServerPlayers.register();
 		dev.halfcraft.weapon.WeaponsPayload.register();
 		dev.halfcraft.world.WaterPayload.register();
+		dev.halfcraft.world.HeldSync.register();
+		dev.halfcraft.world.HostItems.init();
 		HalfCraftServer.init();
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents.CHUNK_UNLOAD.register(dev.halfcraft.world.Rollback::chunkUnloading);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {

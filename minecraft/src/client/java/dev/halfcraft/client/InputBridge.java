@@ -89,6 +89,7 @@ public final class InputBridge {
 			case Proto.IN_MAP_ENTERED -> mapEntered(minecraft, new int[] { code, a, b, c });
 			case Proto.IN_TAKE_BLOCK -> HeldBlocks.take(minecraft.getSingleplayerServer(), code, new BlockPos(a, b, c));
 			case Proto.IN_HELD_BLOCK_LANDED -> HeldBlocks.landed(minecraft.getSingleplayerServer(), code, new BlockPos(a, b, c));
+			case Proto.IN_TAKE_ITEM -> HeldBlocks.takeItem(minecraft.getSingleplayerServer(), code, a);
 			case Proto.IN_HELD_BLOCK_LOST -> HeldBlocks.lost(minecraft.getSingleplayerServer(), code, new BlockPos(a, b, c));
 			case Proto.IN_PROP_DROPPED -> dev.halfcraft.props.HostProps.dropped(minecraft.getSingleplayerServer(), code, HostHurts.coordinate(a), HostHurts.coordinate(b),
 				HostHurts.coordinate(c));

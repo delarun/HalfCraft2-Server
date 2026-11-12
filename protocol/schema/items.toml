@@ -1,0 +1,35 @@
+title = "item table"
+doc = """
+(the gravity gun's items) Minecraft's dropped items near the player(s), which the host's gravity gun pulls: the host
+keeps a stand-in for each it can grab (kInTakeItem takes the item out of Minecraft's world into a held slot, as
+kInTakeBlock a block)."""
+
+[regions.ItemTable]
+at = 0x3D000
+bytes = 0x1000
+type = "ItemTable"
+doc = "MC -> host, seqlock"
+
+[constants]
+kMaxItems = { type = "u32", value = 96, doc = "records in the table, nearest the players first" }
+
+[structs.ItemRecord]
+size = 24
+java = "IT_R"
+java_size = "IT_RECORD_BYTES"
+
+[structs.ItemRecord.fields]
+id = { type = "u32", doc = "the item entity's Minecraft id" }
+count = { type = "u32", doc = "how many the stack holds" }
+"x, y, z" = { type = "f32", doc = "its feet (MC coords)" }
+pad = "u32"
+
+[structs.ItemTable]
+seqlock = true
+java = "IT"
+
+[structs.ItemTable.fields]
+seq = "u32"
+count = "u32"
+pad = "u8[0x10 - 8]"
+items = { type = "ItemRecord[kMaxItems]", java = "IT_RECORDS" }

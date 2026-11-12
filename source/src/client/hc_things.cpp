@@ -665,6 +665,7 @@ RecvPropInt(RECVINFO(m_iHeldSlot)),
 				bool          known = false;
 				float         uv[3][4]{};
 				std::uint32_t tint = 0;
+				float         scale = 1.0f;  // the cube's side in blocks: a block's 1, an item's smaller
 			};
 			std::array<HeldFaces, proto::kMaxHeldBlocks> held_faces_{};
 
@@ -902,6 +903,7 @@ RecvPropInt(RECVINFO(m_iHeldSlot)),
 						faces.known = true;
 						std::memcpy(faces.uv, e.uv, sizeof(faces.uv));
 						faces.tint = e.tint;
+						faces.scale = e.scale > 0.0f ? e.scale : 1.0f;
 					}
 					continue;  // drawn on its cube (build_held_blocks)
 				}
@@ -997,7 +999,7 @@ RecvPropInt(RECVINFO(m_iHeldSlot)),
 				const McVec  centre = source_to_mc(where, slot);
 				Emitter      out{ entity_list_, slot, { centre.x, centre.y, centre.z }, atlas.u_scale, atlas.v_scale };
 				entity_list_.use(atlas.cutout, false);
-				emit_turned_cube(out, prop->GetRenderAngles(), 0.5f, faces.uv[0], faces.uv[1], faces.uv[2], faces.tint, light.at(where));
+				emit_turned_cube(out, prop->GetRenderAngles(), 0.5f * faces.scale, faces.uv[0], faces.uv[1], faces.uv[2], faces.tint, light.at(where));
 			}
 			// a held slot without a cube: its next block's faces come anew
 			for (std::size_t i = 0; i < live.size(); ++i) {

@@ -86,6 +86,10 @@ HalfCraft server's Minecraft applies it to them); single player never sends it""
 kInPropDropped = { value = 26, doc = """
 a Half-Life prop Minecraft makes (PropKind) was broken down by Minecraft's hits: code = its PropKind,
 a/b/c = where it was (MC coords, float bits); its item drops there, for kInFor's player""" }
+kInTakeItem = { value = 27, doc = """
+the gravity gun took one of Minecraft's dropped items (ItemTable) into a held slot: code = the slot, a = the
+item entity's id. Minecraft answers kEvHeldBlock as for kInTakeBlock; kInHeldBlockLanded and kInHeldBlockLost
+drop the item in their cell""" }
 
 [enums.MapEntry]
 type = "u16"

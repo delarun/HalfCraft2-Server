@@ -105,6 +105,8 @@ namespace halfcraft
 		bool read_mobs(proto::MobTable& out) const;
 		/// the halfcraft server's players' minecraft health (seqlock; a server link's); out.count says how many.
 		bool read_player_vitals(proto::PlayerVitalsTable& out) const;
+		/// minecraft's dropped items near the player(s), for the gravity gun (proto::ItemTable); false while torn or unwritten
+		bool read_items(proto::ItemTable& out) const;
 
 		/// render ring, consumer side: calls fn(type, payload, bytes) per pending message, up to
 		/// about max_bytes of payload. payload points into shared memory.

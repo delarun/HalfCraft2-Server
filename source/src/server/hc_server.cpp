@@ -25,6 +25,7 @@
 #include "server/hc_dig.h"
 #include "server/hc_hazards.h"
 #include "server/hc_held_blocks.h"
+#include "server/hc_items.h"
 #include "server/hc_mobs.h"
 #include "server/hc_players.h"
 #include "server/hc_push.h"
@@ -122,6 +123,7 @@ namespace halfcraft
 			{
 				world_.reset({}, nullptr);
 				mobs_.reset();
+				items_.reset();
 			}
 
 			void FrameUpdatePostEntityThink() override;
@@ -182,6 +184,7 @@ namespace halfcraft
 			Weapons                            weapons_;
 			Combat                             combat_;
 			Mobs                               mobs_;
+			Items                              items_;  // minecraft's dropped items, for the gravity gun
 			Push                               push_;
 			DebugTarget                        debug_target_;
 			Vitals                             vitals_;
@@ -230,6 +233,7 @@ namespace halfcraft
 			held_blocks_.update();  // the gravity gun's blocks land where they come to rest
 			push_.update(player, puppeted && link_.mc_alive());
 			mobs_.update(link_, slot_);
+			items_.update(link_, slot_);
 			if (dedicated_) {
 				vitals_.update_players(link_);  // each player's health is their minecraft's on the halfcraft server
 			} else {

@@ -9,7 +9,7 @@ namespace halfcraft::proto
 {
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	inline constexpr std::uint32_t kLayout = 0x1D6AD886;
+	inline constexpr std::uint32_t kLayout = 0x207D00AF;
 
 	// ---- where each part of the mapping is ----------------------------------------------------------
 	inline constexpr std::uint64_t kOffHeader = 0x00;
@@ -35,6 +35,8 @@ namespace halfcraft::proto
 	// 0x2A000-0x30FFF: kept for the world group (C)
 	inline constexpr std::uint64_t kOffPlayerVitals = 0x3C000;       // MC -> host (a server link only), seqlock
 	inline constexpr std::uint64_t kPlayerVitalsBytes = 0x1000;
+	inline constexpr std::uint64_t kOffItemTable = 0x3D000;          // MC -> host, seqlock
+	inline constexpr std::uint64_t kItemTableBytes = 0x1000;
 	inline constexpr std::uint64_t kOffCollisionRing = 0x40000;      // host -> MC, a byte ring
 	inline constexpr std::uint64_t kCollisionRingBytes = 0x2000000;  // 32 << 20
 	inline constexpr std::uint64_t kOffOverlayPixels = 0x2040000;    // MC -> host: the slots' RGBA8 pixels
@@ -321,6 +323,10 @@ namespace halfcraft::proto
 		// a Half-Life prop Minecraft makes (PropKind) was broken down by Minecraft's hits: code = its PropKind,
 		// a/b/c = where it was (MC coords, float bits); its item drops there, for kInFor's player
 		kInPropDropped = 26,
+		// the gravity gun took one of Minecraft's dropped items (ItemTable) into a held slot: code = the slot, a = the
+		// item entity's id. Minecraft answers kEvHeldBlock as for kInTakeBlock; kInHeldBlockLanded and kInHeldBlockLost
+		// drop the item in their cell
+		kInTakeItem = 27,
 		// 26-27: kept for the world group (C)
 	};
 
@@ -807,6 +813,30 @@ namespace halfcraft::proto
 		PlayerVitalsRecord players[kMaxServerPlayers];
 	};
 	static_assert(sizeof(PlayerVitalsTable) == 0x310);
+
+	// ---- item table @0x3D000 ------------------------------------------------------------------------
+	// (the gravity gun's items) Minecraft's dropped items near the player(s), which the host's gravity gun pulls: the host
+	// keeps a stand-in for each it can grab (kInTakeItem takes the item out of Minecraft's world into a held slot, as
+	// kInTakeBlock a block).
+	inline constexpr std::uint32_t kMaxItems = 96;  // records in the table, nearest the players first
+
+	struct ItemRecord
+	{
+		std::uint32_t id;       // the item entity's Minecraft id
+		std::uint32_t count;    // how many the stack holds
+		float         x, y, z;  // its feet (MC coords)
+		std::uint32_t pad;
+	};
+	static_assert(sizeof(ItemRecord) == 0x18);
+
+	struct ItemTable
+	{
+		std::uint32_t seq;
+		std::uint32_t count;
+		std::uint8_t  pad[0x10 - 8];
+		ItemRecord    items[kMaxItems];
+	};
+	static_assert(sizeof(ItemTable) == 0x910);
 
 	// ---- collision ring @0x40000 --------------------------------------------------------------------
 	// The host produces, MC consumes. Byte ring. Every message starts 8-byte aligned with {u32 type, u32 payloadBytes}.

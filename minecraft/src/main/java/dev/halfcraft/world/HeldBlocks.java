@@ -11,6 +11,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.BlockGetter;
@@ -34,8 +36,8 @@ import org.jspecify.annotations.Nullable;
  * <p>The changes run on the server thread; the client thread only reads what's held.
  */
 public final class HeldBlocks {
-	/** A block a cube is: its state, and where it was taken from. */
-	private record Held(BlockState state, BlockPos origin) {
+	/** A block a cube is: its state, and where it was taken from; or one of Minecraft's dropped items (state air). */
+	private record Held(BlockState state, BlockPos origin, @Nullable ItemStack item) {
 	}
 
 	private static final Map<Integer, Held> HELD = new ConcurrentHashMap<>();
@@ -57,12 +59,36 @@ public final class HeldBlocks {
 
 	/** What each held slot is, for WorldExporter. Any thread. */
 	public static void forEachHeld(BiConsumer<Integer, BlockState> action) {
-		HELD.forEach((slot, held) -> action.accept(slot, held.state()));
+		HELD.forEach((slot, held) -> {
+			if (held.item() == null) {
+				action.accept(slot, held.state());
+			}
+		});
+	}
+
+	/** The items held slots are (the gravity gun took them as dropped), for WorldExporter. Any thread. */
+	public static void forEachHeldItem(BiConsumer<Integer, ItemStack> action) {
+		HELD.forEach((slot, held) -> {
+			if (held.item() != null) {
+				action.accept(slot, held.item());
+			}
+		});
 	}
 
 	/** Where each held block was taken from, and what it is: a checkpoint has them there. Server thread. */
 	static void forEachOrigin(BiConsumer<BlockPos, BlockState> action) {
-		HELD.values().forEach(held -> action.accept(held.origin(), held.state()));
+		HELD.values().forEach(held -> {
+			if (held.item() == null) {
+				action.accept(held.origin(), held.state());
+			}
+		});
+	}
+
+	/** Proto.IN_TAKE_ITEM: the gravity gun took the dropped item with that entity id into the slot. Any thread. */
+	public static void takeItem(@Nullable MinecraftServer server, int slot, int entityId) {
+		if (server != null) {
+			server.execute(() -> takeItemNow(server, slot, entityId));
+		}
 	}
 
 	/** Proto.IN_TAKE_BLOCK: the gravity gun tore the block at pos out into the slot. Any thread. */
@@ -89,13 +115,21 @@ public final class HeldBlocks {
 	/** Half-Life loaded a save: its cubes went with the level, and the checkpoint has their blocks. Server thread. */
 	static void forget() {
 		HELD.clear();
+		HeldSync.changed();
 	}
 
 	/** The world is closing: each held block goes back where it was taken from, or lies there as an item. */
 	public static void putAllBack(MinecraftServer server) {
 		ServerLevel level = server.overworld();
-		HELD.values().forEach(held -> put(level, held.state(), held.origin()));
+		HELD.values().forEach(held -> {
+			if (held.item() != null) {
+				dropItem(level, held.item(), held.origin());
+			} else {
+				put(level, held.state(), held.origin());
+			}
+		});
 		HELD.clear();
+		HeldSync.changed();
 	}
 
 	private static void takeNow(MinecraftServer server, int slot, BlockPos pos) {
@@ -108,17 +142,41 @@ public final class HeldBlocks {
 		}
 		// out of the world as if broken (its neighbours react), with nothing dropped
 		level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
-		HELD.put(slot, new Held(state, pos.immutable()));
+		HELD.put(slot, new Held(state, pos.immutable(), null));
+		HeldSync.changed();
 		int material = material(state);
 		dev.halfcraft.link.HostSide.pushEvent(Proto.EV_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, Proto.HELD_TAKEN, material);
 		HalfCraft.LOG.info("HalfCraft: the gravity gun tore {} out at {} (held slot {}, material {})", name(state), pos.toShortString(), slot, material);
 	}
 
+	private static void takeItemNow(MinecraftServer server, int slot, int entityId) {
+		ServerLevel level = mirror(server);
+		if (level == null || !(level.getEntity(entityId) instanceof ItemEntity entity) || !entity.isAlive() || entity.getItem().isEmpty()) {
+			// picked up or gone since Half-Life saw it
+			dev.halfcraft.link.HostSide.pushEvent(Proto.EV_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, Proto.HELD_REFUSED, 0);
+			return;
+		}
+		ItemStack stack = entity.getItem().copy();
+		entity.discard();
+		HELD.put(slot, new Held(Blocks.AIR.defaultBlockState(), entity.blockPosition(), stack));
+		HeldSync.changed();
+		int material = stack.getItem() instanceof BlockItem block ? material(block.getBlock().defaultBlockState()) : Proto.MAT_WOOD;
+		dev.halfcraft.link.HostSide.pushEvent(Proto.EV_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, Proto.HELD_TAKEN, material);
+		HalfCraft.LOG.info("HalfCraft: the gravity gun took {} x{} (held slot {})", BuiltInRegistries.ITEM.getKey(stack.getItem()), stack.getCount(), slot);
+	}
+
 	private static void landedNow(MinecraftServer server, int slot, BlockPos cell) {
 		Held held = HELD.remove(slot);
+		HeldSync.changed();
 		ServerLevel level = mirror(server);
 		if (held == null || level == null) {
 			// nothing remembered for it (Minecraft started over meanwhile): the cube just goes
+			dev.halfcraft.link.HostSide.pushEvent(Proto.EV_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, Proto.HELD_DROPPED, 0);
+			return;
+		}
+		if (held.item() != null) {
+			// an item drops where it came to rest, as one
+			dropItem(level, held.item(), cell);
 			dev.halfcraft.link.HostSide.pushEvent(Proto.EV_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, Proto.HELD_DROPPED, 0);
 			return;
 		}
@@ -130,8 +188,13 @@ public final class HeldBlocks {
 
 	private static void lostNow(MinecraftServer server, int slot, BlockPos cell) {
 		Held held = HELD.remove(slot);
+		HeldSync.changed();
 		ServerLevel level = mirror(server);
 		if (held == null || level == null) {
+			return;
+		}
+		if (held.item() != null) {
+			dropItem(level, held.item(), cell);
 			return;
 		}
 		drop(level, held.state(), cell);
@@ -149,6 +212,13 @@ public final class HeldBlocks {
 		}
 		drop(level, state, cell);
 		return false;
+	}
+
+	/** A held item back into the world, still, in the middle of the cell's floor. */
+	private static void dropItem(ServerLevel level, ItemStack stack, BlockPos cell) {
+		ItemEntity entity = new ItemEntity(level, cell.getX() + 0.5, cell.getY() + 0.1, cell.getZ() + 0.5, stack, 0.0, 0.0, 0.0);
+		entity.setPickUpDelay(10);
+		level.addFreshEntity(entity);
 	}
 
 	private static void drop(ServerLevel level, BlockState state, BlockPos cell) {

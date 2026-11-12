@@ -10,7 +10,7 @@ public final class Proto {
 
 	// a hash of the layout below but its comments: the host writes it into the header, and Minecraft links only
 	// with a host built from the same schema
-	public static final int LAYOUT = 0x1D6AD886;
+	public static final int LAYOUT = 0x207D00AF;
 
 	// ---- where each part of the mapping is
 	public static final long OFF_HEADER = 0x00;
@@ -36,6 +36,8 @@ public final class Proto {
 	// 0x2A000-0x30FFF: kept for the world group (C)
 	public static final long OFF_PLAYER_VITALS = 0x3C000; // MC -> host (a server link only), seqlock
 	public static final long PLAYER_VITALS_BYTES = 0x1000;
+	public static final long OFF_ITEM_TABLE = 0x3D000; // MC -> host, seqlock
+	public static final long ITEM_TABLE_BYTES = 0x1000;
 	public static final long OFF_COLLISION_RING = 0x40000; // host -> MC, a byte ring
 	public static final long COLLISION_RING_BYTES = 0x2000000; // 32 << 20
 	public static final long OFF_OVERLAY_PIXELS = 0x2040000; // MC -> host: the slots' RGBA8 pixels
@@ -308,6 +310,10 @@ public final class Proto {
 	// a Half-Life prop Minecraft makes (PropKind) was broken down by Minecraft's hits: code = its PropKind,
 	// a/b/c = where it was (MC coords, float bits); its item drops there, for IN_FOR's player
 	public static final int IN_PROP_DROPPED = 26;
+	// the gravity gun took one of Minecraft's dropped items (ItemTable) into a held slot: code = the slot, a = the
+	// item entity's id. Minecraft answers EV_HELD_BLOCK as for IN_TAKE_BLOCK; IN_HELD_BLOCK_LANDED and IN_HELD_BLOCK_LOST
+	// drop the item in their cell
+	public static final int IN_TAKE_ITEM = 27;
 	// 26-27: kept for the world group (C)
 
 	// MapEntry
@@ -728,6 +734,26 @@ public final class Proto {
 	public static final long PV_COUNT = 0x04;
 	public static final long PV_RECORDS = 0x10;
 	public static final int PV_BYTES = 0x310;
+
+	// ---- item table @0x3D000 ------------------------------------------------------------------------
+	// (the gravity gun's items) Minecraft's dropped items near the player(s), which the host's gravity gun pulls: the host
+	// keeps a stand-in for each it can grab (IN_TAKE_ITEM takes the item out of Minecraft's world into a held slot, as
+	// IN_TAKE_BLOCK a block).
+	public static final int MAX_ITEMS = 96; // records in the table, nearest the players first
+
+	// ItemRecord: offsets in it
+	public static final long IT_R_ID = 0x00; // the item entity's Minecraft id
+	public static final long IT_R_COUNT = 0x04; // how many the stack holds
+	public static final long IT_R_X = 0x08; // its feet (MC coords)
+	public static final long IT_R_Y = 0x0C;
+	public static final long IT_R_Z = 0x10;
+	public static final int IT_RECORD_BYTES = 0x18;
+
+	// ItemTable: offsets in it (in OFF_ITEM_TABLE)
+	public static final long IT_SEQ = 0x00;
+	public static final long IT_COUNT = 0x04;
+	public static final long IT_RECORDS = 0x10;
+	public static final int IT_BYTES = 0x910;
 
 	// ---- collision ring @0x40000 --------------------------------------------------------------------
 	// The host produces, MC consumes. Byte ring. Every message starts 8-byte aligned with {u32 type, u32 payloadBytes}.

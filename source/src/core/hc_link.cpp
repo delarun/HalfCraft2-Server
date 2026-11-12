@@ -600,6 +600,11 @@ namespace halfcraft
 		return maps(proto::kOffPlayerVitals + sizeof(proto::PlayerVitalsTable)) && seqlock_read(at<proto::PlayerVitalsTable>(proto::kOffPlayerVitals), out, 64);
 	}
 
+	bool Link::read_items(proto::ItemTable& out) const
+	{
+		return maps(proto::kOffItemTable + sizeof(proto::ItemTable)) && seqlock_read(at<proto::ItemTable>(proto::kOffItemTable), out, 64);
+	}
+
 	bool Link::read_mobs(proto::MobTable& out) const
 	{
 		if (!base_) {

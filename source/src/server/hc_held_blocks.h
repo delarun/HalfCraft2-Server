@@ -26,6 +26,15 @@ namespace halfcraft
 	///   at the wall), or client.dll isn't there to tell minecraft
 	CBaseEntity* take_block(const int cell[3], const Vector& velocity, CBaseEntity* wall);
 
+	/// the gravity gun takes one of minecraft's dropped items (proto::ItemTable): a small cube the gun holds and
+	/// throws, which client.dll draws with the item's icon. minecraft takes the item out of its world meanwhile
+	/// (proto::kInTakeItem), and drops it again where the cube comes to rest (or goes).
+	/// @param mc_id - the item entity's minecraft id
+	/// @param at - its stand-in's centre
+	/// @param velocity - the cube's at once (a punt)
+	/// @return the cube, or nullptr (as take_block's)
+	CBaseEntity* take_item(std::uint32_t mc_id, const Vector& at, const Vector& velocity);
+
 	class HeldBlocks
 	{
 	public:
