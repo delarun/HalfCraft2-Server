@@ -21,7 +21,8 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools\, where the halfcraft package is
-from halfcraft import REPO, ToolError, engines, windows
+from halfcraft import REPO, ToolError, engines
+from halfcraft.engines import system as windows  # windows.py, or posix.py on linux: the same names
 
 LOGS = {
     **{name: engine.game / "console.log" for name, engine in engines.ENGINES.items()},

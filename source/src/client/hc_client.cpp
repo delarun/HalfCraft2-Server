@@ -26,6 +26,7 @@
 #include "client/hc_things.h"
 #include "client/hc_weapons.h"
 #include "core/hc_log.h"
+#include "core/hc_module.h"
 #include "core/hc_text_input.h"
 #include "shared/hc_hooks.h"
 
@@ -630,24 +631,24 @@ namespace
 }
 
 // server.dll's way to put half-life's hits and heals on the player onto the input ring (hc_bridge.h)
-extern "C" __declspec(dllexport) void HalfCraft_PushHurt(int kind, float damage, std::uint32_t attacker, std::uint32_t flags)
+extern "C" HC_EXPORT void HalfCraft_PushHurt(int kind, float damage, std::uint32_t attacker, std::uint32_t flags)
 {
 	queue_server_input(halfcraft::proto::kInHurt, kind, static_cast<std::int32_t>(damage * 100.0f), static_cast<std::int32_t>(attacker),
 		static_cast<std::int32_t>(flags));
 }
 
-extern "C" __declspec(dllexport) void HalfCraft_PushInput(int type, int code, int a, int b, int c)
+extern "C" HC_EXPORT void HalfCraft_PushInput(int type, int code, int a, int b, int c)
 {
 	queue_server_input(static_cast<halfcraft::proto::InputType>(type), code, a, b, c);
 }
 
-extern "C" __declspec(dllexport) void HalfCraft_PushHeal(int kind, float amount)
+extern "C" HC_EXPORT void HalfCraft_PushHeal(int kind, float amount)
 {
 	queue_server_input(halfcraft::proto::kInHeal, kind, static_cast<std::int32_t>(amount * 100.0f));
 }
 
 // server.dll: the player carries a prop with use, or stopped (hc_bridge.h)
-extern "C" __declspec(dllexport) void HalfCraft_SetHolding(int holding)
+extern "C" HC_EXPORT void HalfCraft_SetHolding(int holding)
 {
 	auto& session = halfcraft::client_session();
 	if (session.holding && !holding) {
@@ -673,7 +674,7 @@ CON_COMMAND(hc_new_game, "halfcraft: the next map to load is a new game from the
 }
 
 // server.dll, as a map loads: whether hc_new_game ran since it last asked (hc_bridge.h)
-extern "C" __declspec(dllexport) int HalfCraft_TakeNewGame()
+extern "C" HC_EXPORT int HalfCraft_TakeNewGame()
 {
 	const bool asked = g_new_game_asked;
 	g_new_game_asked = false;
@@ -681,7 +682,7 @@ extern "C" __declspec(dllexport) int HalfCraft_TakeNewGame()
 }
 
 // server.dll, as a map loads: whether this client still has a level's entities (hc_bridge.h)
-extern "C" __declspec(dllexport) int HalfCraft_ClientInLevel()
+extern "C" HC_EXPORT int HalfCraft_ClientInLevel()
 {
 	return halfcraft::g_client_in_level ? 1 : 0;
 }

@@ -32,7 +32,8 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools\, where the halfcraft package is
-from halfcraft import REPO, ToolError, engines, folders, gradle, protocol, windows
+from halfcraft import REPO, ToolError, engines, folders, gradle, protocol
+from halfcraft.engines import system as windows  # windows.py, or posix.py on linux: the same names
 from halfcraft.link import LinkNames, link_names, this_link
 
 SESSIONS = REPO / "build/test-session"

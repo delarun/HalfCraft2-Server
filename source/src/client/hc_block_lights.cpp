@@ -28,6 +28,7 @@
 
 #include "client/hc_block_lights.h"
 #include "client/hc_client.h"
+#include "core/hc_module.h"
 #include "core/hc_units.h"
 #include "shared/hc_bridge.h"
 #include "shared/hc_hooks.h"
@@ -890,7 +891,7 @@ namespace halfcraft
 }
 
 // server.dll's way to minecraft's fire, lava and magma (hc_bridge.h)
-extern "C" __declspec(dllexport) int HalfCraft_HazardAt(int x, int y, int z)
+extern "C" HC_EXPORT int HalfCraft_HazardAt(int x, int y, int z)
 {
 	return halfcraft::block_lights().hazard_at(x, y, z);
 }

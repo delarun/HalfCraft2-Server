@@ -9,6 +9,7 @@
 #include "tier0/valve_minmax_off.h"
 
 #include "core/hc_log.h"
+#include "core/hc_module.h"
 #include "shared/hc_hooks.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -48,7 +49,7 @@ namespace halfcraft
 }
 
 // client.dll's hc_host: whether this process's server has a level (hc_bridge.h)
-extern "C" __declspec(dllexport) int HalfCraft_ServerInLevel()
+extern "C" HC_EXPORT int HalfCraft_ServerInLevel()
 {
 	return halfcraft::g_server_in_level ? 1 : 0;
 }
