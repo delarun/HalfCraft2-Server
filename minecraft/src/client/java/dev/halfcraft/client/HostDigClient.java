@@ -97,7 +97,8 @@ public final class HostDigClient {
 		}
 		// a hole's side or bottom where Half-Life has no triangle (under its ground's surface): the look meets the rock there
 		Target wall = holeWall(level, player, Math.min(surfaceDistance, player.blockInteractionRange()));
-		Target target = wall != null ? wall : surface;
+		// the surface's own cell met as a wall first (its voxels stand a little over its triangles): the surface's material
+		Target target = wall != null && (surface == null || !wall.pos().equals(surface.pos())) ? wall : surface;
 		if (target == null || dug(level, target.pos().getX(), target.pos().getY(), target.pos().getZ())) {
 			return null;
 		}
@@ -139,16 +140,24 @@ public final class HostDigClient {
 			return null;
 		}
 		BlockPos pos = found[0];
+		Vec3 hit = at[0].getLocation();
+		// the material of the cell's diggable triangle nearest where the look meets it (a pier's planks over the
+		// beach's sand are both in a cell)
 		int material = DIG_STONE;
+		double nearest = Double.POSITIVE_INFINITY;
 		List<HostTri> tris = new ArrayList<>();
 		HostCollision.trianglesNear(new AABB(pos), tris);
 		for (HostTri tri : tris) {
-			if (tri.diggable()) {
+			if (!tri.diggable()) {
+				continue;
+			}
+			double cx = (tri.ax + tri.bx + tri.cx) / 3.0 - hit.x, cy = (tri.ay + tri.by + tri.cy) / 3.0 - hit.y, cz = (tri.az + tri.bz + tri.cz) / 3.0 - hit.z;
+			double distance = cx * cx + cy * cy + cz * cz;
+			if (distance < nearest) {
+				nearest = distance;
 				material = tri.digMaterial;
-				break;
 			}
 		}
-		Vec3 hit = at[0].getLocation();
 		var normal = at[0].getDirection().getUnitVec3();
 		return new Target(pos, material, hit.x, hit.y, hit.z, normal.x, normal.y, normal.z);
 	}

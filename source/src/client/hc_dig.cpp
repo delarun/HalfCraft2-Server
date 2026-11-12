@@ -777,6 +777,11 @@ namespace halfcraft
 		return g_holes_near;
 	}
 
+	bool client_simple_world_view()
+	{
+		return g_holes_near;
+	}
+
 	void dig_level_loaded()
 	{
 		g_mask_resync.store(true, std::memory_order_release);
