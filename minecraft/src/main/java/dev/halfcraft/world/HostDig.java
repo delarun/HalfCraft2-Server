@@ -126,6 +126,9 @@ public final class HostDig {
 	/** Whether a getter's cell is dug: the chunk's own, or the level's (or a region's) chunk there, if it has one. */
 	private static boolean dugIn(BlockGetter getter, int x, int y, int z) {
 		BlockGetter chunk = getter instanceof CollisionGetter level ? level.getChunkForCollisions(x >> 4, z >> 4) : getter;
+		if (chunk instanceof LevelChunk c && (c.getPos().x() != x >> 4 || c.getPos().z() != z >> 4)) {
+			chunk = c.getLevel().getChunkForCollisions(x >> 4, z >> 4); // a neighbour's cell (HostCollision.collisionShapeAt)
+		}
 		return chunk instanceof LevelChunk c && column(c).has(x, y, z);
 	}
 

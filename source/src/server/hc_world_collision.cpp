@@ -425,6 +425,7 @@ namespace halfcraft
 		movers_.clear();
 		sky_brushes_ = map_name ? read_sky_brushes(map_name) : std::vector<bool>();
 		brush_dig_.clear();
+		ground_dig_.clear();
 		bsp_ = map_name ? read_void_tree(map_name) : nullptr;
 		cut_pieces_.clear();
 	}
@@ -663,7 +664,41 @@ namespace halfcraft
 			tr.surface.name ? tr.surface.name : "?", prop ? prop : "?", game_material, side_dig, dig.material);
 	}
 
-	void WorldCollision::add_displacements(const Vector& mins, const Vector& maxs, ColPrimitives& out) const
+	std::uint8_t WorldCollision::ground_material(const Vector verts[3], std::uint8_t fallback)
+	{
+		const Vector centre = (verts[0] + verts[1] + verts[2]) / 3.0f;
+		// a quarter of a unit apart: two triangles' centres never are that close
+		const auto          q = [](float v) { return static_cast<std::uint64_t>(static_cast<std::int64_t>(std::lround(v * 4.0f)) & 0x1FFFFF); };
+		const std::uint64_t key = q(centre.x) | (q(centre.y) << 21) | (q(centre.z) << 42);
+		const auto          found = ground_dig_.find(key);
+		if (found != ground_dig_.end()) {
+			return found->second;
+		}
+		Vector       normal = CrossProduct(verts[1] - verts[0], verts[2] - verts[0]);
+		std::uint8_t material = fallback;
+		if (VectorNormalize(normal) > 0.0f) {
+			// through its middle, from either side: whichever way its winding faces
+			for (const float way : { 1.0f, -1.0f }) {
+				Ray_t ray;
+				ray.Init(centre + normal * (way * SIDE_PROBE_UNITS), centre - normal * (way * SIDE_PROBE_UNITS));
+				CTraceFilterWorldOnly filter;
+				trace_t               tr;
+				enginetrace->TraceRay(ray, MASK_SOLID_BRUSHONLY, &filter, &tr);
+				if (tr.startsolid || tr.fraction >= 1.0f || !(tr.dispFlags & DISPSURF_FLAG_SURFACE) || tr.surface.surfaceProps < 0) {
+					continue;
+				}
+				const surfacedata_t* data = physprops->GetSurfaceData(tr.surface.surfaceProps);
+				if (data && data->game.material != 0) {
+					material = dig_material(static_cast<char>(data->game.material));
+				}
+				break;
+			}
+		}
+		ground_dig_.emplace(key, material);
+		return material;
+	}
+
+	void WorldCollision::add_displacements(const Vector& mins, const Vector& maxs, ColPrimitives& out)
 	{
 		// the ground over the box too, as far as the rock under it reaches into the box (core/hc_dig_ground.h)
 		const Vector  above(maxs.x, maxs.y, maxs.z + GROUND_DEPTH * static_cast<float>(UNITS_PER_BLOCK));
@@ -692,7 +727,7 @@ namespace halfcraft
 				}
 				// the ground digs as its surface does: dirt, sand, grass (dirt), a rock face's concrete (stone)
 				const surfacedata_t* data = physprops->GetSurfaceData(query->GetTriangleMaterialIndex(c, t));
-				tri.flags = dig_flags(data && data->game.material != 0 ? dig_material(static_cast<char>(data->game.material)) : DIG_DIRT);
+				tri.flags = dig_flags(ground_material(verts, data && data->game.material != 0 ? dig_material(static_cast<char>(data->game.material)) : DIG_DIRT));
 				out.ground.push_back(tri);
 				bool inside = true;
 				for (int k = 0; k < 3; ++k) {

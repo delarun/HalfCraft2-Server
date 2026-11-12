@@ -15,6 +15,8 @@ import static dev.halfcraft.link.Proto.COL_REGION_MIN_X;
 import static dev.halfcraft.link.Proto.COL_REGION_MIN_Y;
 import static dev.halfcraft.link.Proto.COL_REGION_MIN_Z;
 import static dev.halfcraft.link.Proto.VOID_ALL;
+import static dev.halfcraft.link.Proto.VOID_GROUND_ALL;
+import static dev.halfcraft.link.Proto.VOID_GROUND_SOME;
 import static dev.halfcraft.link.Proto.VOID_SOME;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
@@ -238,6 +240,34 @@ class HostCollisionTest {
 			assertNull(shape(PX, false, none));
 			assertNull(shape(PX + 1, false, none));
 			assertSameShape(top, shape(PX + 1, true, none));
+		}
+	}
+
+	@Test
+	void shouldCollideWithTheRockUnderTheGroundOnlyNextToADugCell() {
+		try (Arena arena = Arena.ofConfined()) {
+			// blocks 0 and 1 of region (1, 0, 2) rock under the ground: 0 wholly, 1 in its lower half
+			MemorySegment voids = header(arena, 1, 512 + 64);
+			voids.set(JAVA_BYTE, B + index(0, 0, 0), (byte) VOID_GROUND_ALL);
+			voids.set(JAVA_BYTE, B + index(1, 0, 0), (byte) VOID_GROUND_SOME);
+			for (int y = 0; y < 4; y++) {
+				voids.set(JAVA_LONG, B + 512 + y * 8L, -1L);
+			}
+			HostCollision.clear(7);
+			HostCollision.readVoid(voids, 0);
+			HostCollision.readRegion(header(arena, 0, 0), 0);
+
+			// nothing dug: the ground's triangles alone hold what walks on it
+			Set<Long> none = Set.of();
+			assertNull(shape(PX, false, none));
+			assertNull(shape(PX + 1, false, none));
+			// a cell dug over them: the hole's bottom is solid, the dug cell itself isn't
+			Set<Long> above = Set.of(BlockPos.asLong(PX, PY + 1, PZ), BlockPos.asLong(PX + 1, PY + 1, PZ));
+			assertSame(Shapes.block(), shape(PX, false, above));
+			assertSameShape(Shapes.box(0, 0, 0, 1, 0.5, 1), shape(PX + 1, true, above));
+			assertNull(shape(PX, false, Set.of(BlockPos.asLong(PX, PY, PZ), BlockPos.asLong(PX, PY + 1, PZ))));
+			// a side dug: a hole's wall
+			assertSame(Shapes.block(), shape(PX, false, Set.of(BlockPos.asLong(PX - 1, PY, PZ))));
 		}
 	}
 

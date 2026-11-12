@@ -94,10 +94,16 @@ namespace halfcraft
 		void        add_hulls(const std::vector<Hull>& hulls, const matrix3x4_t& to_world, std::uint32_t flags, ColPrimitives& out) const;
 		void        add_box(const Vector& mins, const Vector& maxs, const matrix3x4_t& to_world, ColPrimitives& out) const;
 		void        add_brushes(const Vector& mins, const Vector& maxs, ColPrimitives& out, std::vector<DigBox>& cut);
-		void        add_displacements(const Vector& mins, const Vector& maxs, ColPrimitives& out) const;
-		void        add_static_props(const Vector& mins, const Vector& maxs, ColPrimitives& out);
-		void        add_entities(const Vector& mins, const Vector& maxs, ColPrimitives& out);
-		void        add_entity(CBaseEntity* entity, ColPrimitives& out);
+		void        add_displacements(const Vector& mins, const Vector& maxs, ColPrimitives& out);
+		/// a displacement triangle's dig material (add_displacements), traced the first time it's asked for on this map:
+		/// a blended ground's (sand and grass) is the material its corners' alpha picks, which only a trace gets
+		/// (the displacements' collision model has the first material alone)
+		/// @param verts - its corners, source coords
+		/// @param fallback - its collision model's material: when the trace misses
+		std::uint8_t ground_material(const Vector verts[3], std::uint8_t fallback);
+		void         add_static_props(const Vector& mins, const Vector& maxs, ColPrimitives& out);
+		void         add_entities(const Vector& mins, const Vector& maxs, ColPrimitives& out);
+		void         add_entity(CBaseEntity* entity, ColPrimitives& out);
 		/// an entity's vphysics objects' solids, each where vphysics has it (what its TestCollision traces)
 		void add_vphysics(CBaseEntity* entity, ColPrimitives& out);
 
@@ -126,6 +132,7 @@ namespace halfcraft
 		MapSlot                                                            slot_;
 		std::vector<bool>                                                  sky_brushes_;  // by brush index
 		std::unordered_map<int, BrushDig>                                  brush_dig_;    // by brush index: the diggable brushes asked for so far
+		std::unordered_map<std::uint64_t, std::uint8_t>                    ground_dig_;   // by triangle (its centre, quantized): ground_material's so far
 		std::shared_ptr<const BspTree>                                     bsp_;          // the map's tree, which jobs share with the streamer's worker
 		std::unordered_map<const model_t*, std::vector<std::vector<Hull>>> hulls_;  // by model: model_hulls'
 		std::unordered_map<int, Mover>                                     movers_;  // by entity serial-qualified index

@@ -195,11 +195,28 @@ public final class HostCollision {
 	 */
 	public static <C> @Nullable VoxelShape collisionShapeAt(int x, int y, int z, boolean geometry, C context, DugCells<C> dug) {
 		RegionVoid region = VOIDS.isEmpty() ? null : VOIDS.get(regionKey(Math.floorDiv(x, REGION_SIZE), Math.floorDiv(y, REGION_SIZE), Math.floorDiv(z, REGION_SIZE)));
-		VoxelShape voids = region == null ? null : region.shape(Math.floorMod(x, REGION_SIZE), Math.floorMod(y, REGION_SIZE), Math.floorMod(z, REGION_SIZE), geometry);
+		int bx = Math.floorMod(x, REGION_SIZE), by = Math.floorMod(y, REGION_SIZE), bz = Math.floorMod(z, REGION_SIZE);
+		VoxelShape voids = region == null ? null : region.shape(bx, by, bz, geometry);
+		if (voids == null && region != null && region.ground(bx, by, bz) && nextToDug(x, y, z, context, dug)) {
+			voids = region.groundShape(bx, by, bz, geometry); // a hole's side or bottom
+		}
 		if (voids != null && !dug.dug(context, x, y, z)) {
 			return voids;
 		}
 		return geometry && !SHAPES.isEmpty() ? SHAPES.get(BlockPos.asLong(x, y, z)) : null;
+	}
+
+	// down, up, north, south, west, east
+	private static final int[][] SIDES = { { 0, -1, 0 }, { 0, 1, 0 }, { 0, 0, -1 }, { 0, 0, 1 }, { -1, 0, 0 }, { 1, 0, 0 } };
+
+	/** Whether a cell next to (x, y, z) is dug. */
+	private static <C> boolean nextToDug(int x, int y, int z, C context, DugCells<C> dug) {
+		for (int[] side : SIDES) {
+			if (dug.dug(context, x + side[0], y + side[1], z + side[2])) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** The layers of {@code occupancy} and {@code voids} joined (either may be null: nothing there), in a new array. */
@@ -246,6 +263,29 @@ public final class HostCollision {
 			};
 		}
 
+		/** Whether block (bx, by, bz) is rock under the ground (no void beyond the map). */
+		boolean ground(int bx, int by, int bz) {
+			byte kind = this.kinds[bx + REGION_SIZE * bz + REGION_SIZE * REGION_SIZE * by];
+			return kind == VOID_GROUND_ALL || kind == VOID_GROUND_SOME;
+		}
+
+		/**
+		 * Block (bx, by, bz)'s rock under the ground as a collision shape ({@code rock}: joined with its geometry), or
+		 * null for none: only next to a dug cell, where it is a hole's side or bottom (a cell there that isn't revealed,
+		 * for the face of the ground Half-Life draws on it, would leave the hole open to the rock below, which is
+		 * otherwise not solid: see {@link #shape}).
+		 */
+		@Nullable
+		VoxelShape groundShape(int bx, int by, int bz, boolean rock) {
+			int i = bx + REGION_SIZE * bz + REGION_SIZE * REGION_SIZE * by;
+			VoxelShape[] shapes = rock ? this.rockShapes : this.voidShapes;
+			return switch (this.kinds[i]) {
+				case VOID_GROUND_ALL -> Shapes.block();
+				case VOID_GROUND_SOME -> shapes == null ? null : shapes[i];
+				default -> null;
+			};
+		}
+
 		/** This void with the shapes of its partly void blocks, the region's geometry from LAYERS: its region (rx, ry, rz) has just come. */
 		RegionVoid shaped(int rx, int ry, int rz) {
 			if (Arrays.stream(this.layers).allMatch(Objects::isNull)) {
@@ -254,7 +294,7 @@ public final class HostCollision {
 			VoxelShape[] alone = new VoxelShape[VOID_BLOCKS];
 			VoxelShape[] joined = new VoxelShape[VOID_BLOCKS];
 			for (int i = 0; i < VOID_BLOCKS; i++) {
-				if (this.kinds[i] == VOID_SOME && this.layers[i] != null) {
+				if ((this.kinds[i] == VOID_SOME || this.kinds[i] == VOID_GROUND_SOME) && this.layers[i] != null) {
 					int bx = i % REGION_SIZE, bz = i / REGION_SIZE % REGION_SIZE, by = i / (REGION_SIZE * REGION_SIZE);
 					long[] geometry = layersAt(rx * REGION_SIZE + bx, ry * REGION_SIZE + by, rz * REGION_SIZE + bz);
 					alone[i] = buildShape(this.layers[i]);
