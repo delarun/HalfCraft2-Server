@@ -149,6 +149,39 @@ def processes() -> dict[str, dict[str, int]]:
     return found
 
 
+BUILT = [MINECRAFT / "build" / "classes" / "java" / "main", MINECRAFT / "build" / "resources" / "main",
+         MINECRAFT / "build" / "classes" / "java" / "client", MINECRAFT / "build" / "resources" / "client"]  # fmt: skip
+
+
+def snapshot() -> tuple[Path, Path]:
+    """the mod as built now, copied where a build can't change it under a running server: (its argfile, its launch.cfg).
+
+    a pair's minecraft loads the mod's classes from minecraft/build lazily: rebuilt under it, one went missing and the
+    server crashed (ClassNotFoundException). one copy per build, named by its newest file's time."""
+    newest = max((f.stat().st_mtime_ns for folder in BUILT if folder.exists() for f in folder.rglob("*") if f.is_file()), default=0)
+    here = NETWORK / "mod" / str(newest)
+    argfile, config = here / "runServer", here / "launch.cfg"
+    if argfile.exists() and config.exists():
+        return argfile, config
+    staging = here.with_name(here.name + ".tmp")
+    shutil.rmtree(staging, ignore_errors=True)
+    replace = {}
+    for folder in BUILT:
+        if folder.exists():
+            copy = staging / folder.relative_to(MINECRAFT / "build")
+            shutil.copytree(folder, copy)
+            replace[str(folder)] = str(here / folder.relative_to(MINECRAFT / "build"))
+    def moved(text: str) -> str:
+        for old, new in replace.items():
+            text = text.replace(old, new)
+        return text
+    (staging / "runServer").write_text(moved((MINECRAFT / "build" / "loom-cache" / "argFiles" / "runServer").read_text()))
+    (staging / "launch.cfg").write_text(moved((MINECRAFT / ".gradle" / "loom-cache" / "launch.cfg").read_text()))
+    shutil.rmtree(here, ignore_errors=True)
+    staging.rename(here)
+    return argfile, config
+
+
 def start(pair: dict, srcds: str | None) -> None:
     here = folder(pair)
     running = processes().get(pair["name"], {})
@@ -159,10 +192,10 @@ def start(pair: dict, srcds: str | None) -> None:
         with open(here / "srcds.out", "w") as out:
             subprocess.Popen(command, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
     if "minecraft" not in running:
-        argfile = MINECRAFT / "build" / "loom-cache" / "argFiles" / "runServer"
-        if not argfile.exists():
-            raise ToolError(f"no {argfile}: run make mc-server once first")
-        command = [str(JAVA), f"-Dfabric.dli.config={MINECRAFT / '.gradle' / 'loom-cache' / 'launch.cfg'}", "-Dfabric.dli.env=server",
+        if not (MINECRAFT / "build" / "loom-cache" / "argFiles" / "runServer").exists():
+            raise ToolError("no runServer argfile: run make mc-server once first")
+        argfile, config = snapshot()
+        command = [str(JAVA), f"-Dfabric.dli.config={config}", "-Dfabric.dli.env=server",
                    "-Dfabric.dli.main=net.fabricmc.loader.impl.launch.knot.KnotServer", f"@{argfile}", "--enable-native-access=ALL-UNNAMED",
                    "--sun-misc-unsafe-memory-access=allow", "-Dfile.encoding=UTF-8", "-Xmx2G", "net.fabricmc.devlaunchinjector.Main", "nogui"]  # fmt: skip
         env = {**os.environ, "HALFCRAFT_SERVER_LINKS": f"srv-{pair['name']}", "HALFCRAFT_NETWORK": str(NETWORK / "network.json"), "HALFCRAFT_PAIR": pair["name"]}
