@@ -21,6 +21,7 @@
     "EntitySwimMixin",
     "EntityWaterProbeMixin",
     "FallingBlockMixin",
+    "FireBlockMixin",
     "FishingHookMixin",
     "FlowingFluidMixin",
     "GroundPathNavigationMixin",

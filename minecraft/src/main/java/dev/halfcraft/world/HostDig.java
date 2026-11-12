@@ -93,6 +93,32 @@ public final class HostDig {
 		return column != null ? column : DugColumn.EMPTY;
 	}
 
+	/** Whether a loaded cell is dug. */
+	public static boolean isDugAt(Level level, BlockPos pos) {
+		return isDug(level, pos);
+	}
+
+	/**
+	 * Fire burnt Half-Life's wood out of this cell (HostFire): dug, with nothing dropped, and the wood around it revealed
+	 * as planks, which burn on. False when it can't be: Half-Life lets nothing more be dug, the cell is dug already or a
+	 * Minecraft block fills it. Server thread only.
+	 */
+	public static boolean burn(ServerLevel level, BlockPos pos) {
+		if (!HostNav.inMirror(level) || !level.isLoaded(pos) || digOff() || isDug(level, pos) || !level.getBlockState(pos).canBeReplaced()) {
+			return false;
+		}
+		LevelChunk chunk = level.getChunkAt(pos);
+		chunk.setAttached(DUG, column(chunk).with(pos.getX(), pos.getY(), pos.getZ()));
+		ServerDug.changed(chunk, pos);
+		queue(level, pos, dev.halfcraft.link.Proto.DIG_PLANKS);
+		if (++burnt % 20 == 1) {
+			HalfCraft.LOG.info("HalfCraft: fire burnt Half-Life's wood out of {} ({} cells so far)", pos.toShortString(), burnt);
+		}
+		return true;
+	}
+
+	private static int burnt;
+
 	// loads the cell's chunk: callers check it's loaded first
 	private static boolean isDug(Level level, BlockPos pos) {
 		return column(level.getChunkAt(pos)).has(pos.getX(), pos.getY(), pos.getZ());
@@ -338,7 +364,7 @@ public final class HostDig {
 	}
 
 	/** Blocks a cave opens up to from the nearest player; past it, it waits for a pick. */
-	private static final double CAVE_REACH = 24.0;
+	private static final double CAVE_REACH = 48.0;
 	/** The server stopped: no cave's edge waits for a player any more. */
 	public static void clearFrontier() {
 		FRONTIER.clear();
