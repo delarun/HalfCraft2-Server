@@ -55,7 +55,14 @@ PLAYERS = NETWORK / "players"  # every minecraft server's world/players
 SRCDS = Path(__file__).resolve().parent / "srcds.py"
 MINECRAFT = REPO / "minecraft"
 TEMPLATE = MINECRAFT / "run" / "server"  # make mc-server's folder: its server.properties, ops and eula go to every pair
-JAVA = Path("/usr/lib/jvm/java-25-openjdk/bin/java")
+# java 25: HALFCRAFT_JAVA, else this machine's openjdk 25, else the one on the path
+JAVA = Path(os.environ.get("HALFCRAFT_JAVA") or next((str(p) for p in (Path("/usr/lib/jvm/java-25-openjdk/bin/java"),
+            Path("/usr/lib/jvm/java-25-openjdk-amd64/bin/java")) if p.exists()), shutil.which("java") or "java"))  # fmt: skip
+MEMORY = os.environ.get("HALFCRAFT_MC_MEMORY", "2G")  # each pair's minecraft's heap
+# a production server's minecraft (tools/server/deploy.py): fabric's server launcher and the mods beside it, instead
+# of the dev build's classes
+PRODUCTION = MINECRAFT / "server"
+PRODUCTION_JAR = PRODUCTION / "fabric-server-launcher.jar"
 WORLD = "world"
 STARTUP_SECONDS = 180.0
 
@@ -141,8 +148,9 @@ def processes() -> dict[str, dict[str, int]]:
             for i, arg in enumerate(args[:-1]):
                 if arg == b"-port" and int(args[i + 1]) in by_port:
                     found.setdefault(by_port[int(args[i + 1])], {})["srcds"] = int(proc.name)
+        joined = b" ".join(args)
         for variable in environ:
-            if variable.startswith(b"HALFCRAFT_SERVER_LINKS=") and b"fabric.dli.env=server" in b" ".join(args):
+            if variable.startswith(b"HALFCRAFT_SERVER_LINKS=") and (b"fabric.dli.env=server" in joined or b"fabric-server-launcher.jar" in joined):
                 link = variable.split(b"=", 1)[1].decode()
                 if link in by_link:
                     found.setdefault(by_link[link], {})["minecraft"] = int(proc.name)
@@ -192,12 +200,20 @@ def start(pair: dict, srcds: str | None) -> None:
         with open(here / "srcds.out", "w") as out:
             subprocess.Popen(command, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
     if "minecraft" not in running:
-        if not (MINECRAFT / "build" / "loom-cache" / "argFiles" / "runServer").exists():
-            raise ToolError("no runServer argfile: run make mc-server once first")
-        argfile, config = snapshot()
-        command = [str(JAVA), f"-Dfabric.dli.config={config}", "-Dfabric.dli.env=server",
-                   "-Dfabric.dli.main=net.fabricmc.loader.impl.launch.knot.KnotServer", f"@{argfile}", "--enable-native-access=ALL-UNNAMED",
-                   "--sun-misc-unsafe-memory-access=allow", "-Dfile.encoding=UTF-8", "-Xmx2G", "net.fabricmc.devlaunchinjector.Main", "nogui"]  # fmt: skip
+        if PRODUCTION_JAR.exists():
+            # the mods are the production server's (deploy.py): one folder, every pair's
+            mods = here / "mods"
+            if not mods.is_symlink():
+                shutil.rmtree(mods, ignore_errors=True)
+                mods.symlink_to(PRODUCTION / "mods")
+            command = [str(JAVA), f"-Xmx{MEMORY}", "--enable-native-access=ALL-UNNAMED", "-Dfile.encoding=UTF-8", "-jar", str(PRODUCTION_JAR), "nogui"]
+        else:
+            if not (MINECRAFT / "build" / "loom-cache" / "argFiles" / "runServer").exists():
+                raise ToolError("no runServer argfile: run make mc-server once first")
+            argfile, config = snapshot()
+            command = [str(JAVA), f"-Dfabric.dli.config={config}", "-Dfabric.dli.env=server",
+                       "-Dfabric.dli.main=net.fabricmc.loader.impl.launch.knot.KnotServer", f"@{argfile}", "--enable-native-access=ALL-UNNAMED",
+                       "--sun-misc-unsafe-memory-access=allow", "-Dfile.encoding=UTF-8", f"-Xmx{MEMORY}", "net.fabricmc.devlaunchinjector.Main", "nogui"]  # fmt: skip
         env = {**os.environ, "HALFCRAFT_SERVER_LINKS": f"srv-{pair['name']}", "HALFCRAFT_NETWORK": str(NETWORK / "network.json"), "HALFCRAFT_PAIR": pair["name"]}
         with open(here / "minecraft.log", "w") as out:
             subprocess.Popen(command, cwd=here, env=env, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
@@ -352,7 +368,7 @@ def main() -> None:
         layout()
     elif options.what == "start":
         layout()
-        if not processes():
+        if not processes() and not PRODUCTION_JAR.exists():  # a production server's folder came laid out (deploy.py)
             # the game folder, once, before any of the network's source servers maps it
             subprocess.run([sys.executable, str(SRCDS), "layout", *(["--srcds", options.srcds] if options.srcds else [])], check=True)
         start(find(options.name or HUB[0]), options.srcds)
