@@ -258,45 +258,6 @@ namespace halfcraft
 			}
 		}
 
-		// the world's materials made two-sided while holes are near (set_two_sided), and whether each already was
-		std::vector<std::pair<IMaterial*, bool>> g_two_sided;
-
-		/// the map's world materials (its brushes' and displacements': LightmappedGeneric, WorldVertexTransition and their
-		/// kin) drawn from both sides while holes are near, or as they were. a map's walls have their faces inside it
-		/// alone: from a tunnel dug in the rock behind them, their backs were culled and the map vanished
-		void set_two_sided(bool want)
-		{
-			if (!want) {
-				for (const auto& [material, was] : g_two_sided) {
-					material->SetMaterialVarFlag(MATERIAL_VAR_NOCULL, was);
-				}
-				if (!g_two_sided.empty()) {
-					log_info("dig: the map's %zu world materials one-sided again", g_two_sided.size());
-				}
-				g_two_sided.clear();
-				return;
-			}
-			if (!g_two_sided.empty()) {
-				return;
-			}
-			for (MaterialHandle_t h = materials->FirstMaterial(); h != materials->InvalidMaterial(); h = materials->NextMaterial(h)) {
-				IMaterial* material = materials->GetMaterial(h);
-				if (!material || material->IsErrorMaterial()) {
-					continue;
-				}
-				const char* shader = material->GetShaderName();
-				if (!shader || (!Q_stristr(shader, "Lightmapped") && !Q_stristr(shader, "WorldVertexTransition") && !Q_stristr(shader, "WorldTwoTexture"))) {
-					continue;
-				}
-				const bool was = material->GetMaterialVarFlag(MATERIAL_VAR_NOCULL);
-				if (!was) {
-					material->SetMaterialVarFlag(MATERIAL_VAR_NOCULL, true);
-				}
-				g_two_sided.emplace_back(material, was);
-			}
-			log_info("dig: the map's %zu world materials drawn from both sides while holes are near", g_two_sided.size());
-		}
-
 		/// want: r_novis 1 and r_portalsopenall 1, so the rooms behind the holes near the player are drawn (the map's
 		/// vis hides them behind its walls); otherwise their values from before come back. both are cheats:
 		/// ConVar::SetValue doesn't check FCVAR_CHEAT (the flag stays on them), but the engine puts cheats back to their
@@ -316,11 +277,9 @@ namespace halfcraft
 				}
 				set_cvar(novis, 1);
 				set_cvar(portals, 1);
-				set_two_sided(true);
 			} else {
 				set_cvar(novis, g_old_novis);
 				set_cvar(portals, g_old_portals);
-				set_two_sided(false);
 				g_vis_forced = false;
 				log_info("dig: no holes here: r_novis %d, r_portalsopenall %d again", g_old_novis, g_old_portals);
 			}
@@ -814,7 +773,6 @@ namespace halfcraft
 	{
 		g_mask_resync.store(true, std::memory_order_release);
 		g_details_relaid = true;  // the level's detail props are new: laid out and looked at again
-		g_two_sided.clear();      // put back when the last map was left (force_vis off the map); its materials may be gone
 	}
 
 	void dig_post_render_vgui()
