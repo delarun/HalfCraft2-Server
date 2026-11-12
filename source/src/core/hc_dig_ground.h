@@ -18,7 +18,7 @@
 namespace halfcraft
 {
 	/// how far under the ground (blocks) minecraft finds rock: deeper holes come out under half-life's terrain
-	inline constexpr float GROUND_DEPTH = 8.0f;
+	inline constexpr float GROUND_DEPTH = 24.0f;
 	/// and how far under the surface the rock starts (blocks): a sub-voxel of rock reaches 1/16 over its centre, and a
 	/// player walking on the ground's triangles with their feet in rock fell through it (minecraft lets a box out of a
 	/// shape it's in). more than 1/16, for slopes up to ~58 degrees: the rock's top stays under the feet

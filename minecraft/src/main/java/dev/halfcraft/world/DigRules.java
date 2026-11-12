@@ -50,8 +50,14 @@ public final class DigRules {
 		long @Nullable [] voids(int x, int y, int z);
 	}
 
-	/** A cell that becomes a block of a Proto.DIG_* material. */
-	public record Reveal(int x, int y, int z, int material) {
+	/**
+	 * A cell that becomes a block of a Proto.DIG_* material; or, {@code natural} (at least half of it void beyond the
+	 * map or rock under the ground), what Underground makes of the rock there, {@code material} the one dug down from.
+	 */
+	public record Reveal(int x, int y, int z, int material, boolean natural) {
+		public Reveal(int x, int y, int z, int material) {
+			this(x, y, z, material, false);
+		}
 	}
 
 	private DigRules() {
@@ -83,7 +89,8 @@ public final class DigRules {
 				continue;
 			}
 			if (whollyRock(occupancy, voids) && !cells.dug(nx, ny, nz) && cells.air(nx, ny, nz) && !exposed(cells, nx, ny, nz)) {
-				out.add(new Reveal(nx, ny, nz, revealMaterial(voids, material)));
+				boolean natural = voidCount(voids) >= SUB_VOXELS / 2;
+				out.add(new Reveal(nx, ny, nz, natural ? knownMaterial(material) : revealMaterial(voids, material), natural));
 			}
 		}
 		return out;
@@ -158,10 +165,12 @@ public final class DigRules {
 	 * material opened next to it; stone for DIG_NONE or a material it doesn't know.
 	 */
 	public static int revealMaterial(long @Nullable [] voids, int material) {
-		if (voidCount(voids) >= SUB_VOXELS / 2 || material < DIG_STONE || material > DIG_GLASS) {
-			return DIG_STONE;
-		}
-		return material;
+		return voidCount(voids) >= SUB_VOXELS / 2 ? DIG_STONE : knownMaterial(material);
+	}
+
+	/** The material, or stone for DIG_NONE or one it doesn't know. */
+	static int knownMaterial(int material) {
+		return material < DIG_STONE || material > DIG_SAND ? DIG_STONE : material;
 	}
 
 	private static int voidCount(long @Nullable [] voids) {

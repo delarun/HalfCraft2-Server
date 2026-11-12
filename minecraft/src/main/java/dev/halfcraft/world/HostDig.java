@@ -162,6 +162,19 @@ public final class HostDig {
 		HalfCraft.LOG.info("HalfCraft: dug {} out of Half-Life's walls as {}", pos.toShortString(), DigMaterials.blockId(material));
 	}
 
+	/**
+	 * A cell of Half-Life's ground becomes Minecraft's own (PlantGround): dug out of Half-Life's collision, and the block
+	 * put there (a grass block for a sapling, farmland under a hoe). Server thread.
+	 */
+	public static void fill(ServerLevel level, BlockPos pos, BlockState state) {
+		LevelChunk chunk = level.getChunkAt(pos);
+		if (!isDug(level, pos)) {
+			chunk.setAttached(DUG, column(chunk).with(pos.getX(), pos.getY(), pos.getZ()));
+			ServerDug.changed(chunk, pos);
+		}
+		level.setBlockAndUpdate(pos, state);
+	}
+
 	private static boolean inReach(ServerPlayer player, BlockPos pos) {
 		return player.getEyePosition().distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) <= REACH * REACH;
 	}
@@ -237,23 +250,59 @@ public final class HostDig {
 	private static void reveal(ServerLevel level, BlockPos pos, int material) {
 		boolean voidOnly = digOff();
 		List<DigRules.Reveal> reveals = DigRules.reveals(cells(level), pos.getX(), pos.getY(), pos.getZ(), material, voidOnly);
+		int caves = 0;
 		for (DigRules.Reveal r : reveals) {
 			BlockPos cell = new BlockPos(r.x(), r.y(), r.z());
+			// natural rock is Minecraft's own underground: soil, stone, ores, caves (Underground)
+			BlockState state = r.natural()
+				? BuiltInRegistries.BLOCK.getValue(Identifier.parse(Underground.blockAt(level.getSeed(), r.x(), r.y(), r.z(), r.material(), depthUnder(r.x(), r.y(), r.z()))))
+					.defaultBlockState()
+				: stateFor(r.material());
+			if (state.isAir() && !nearPlayer(level, cell, CAVE_REACH)) {
+				continue; // a cave this far from everyone stays rock: digging into it opens it there
+			}
 			LevelChunk chunk = level.getChunkAt(cell);
 			chunk.setAttached(DUG, column(chunk).with(r.x(), r.y(), r.z()));
 			ServerDug.changed(chunk, cell);
-			BlockState state = stateFor(r.material());
+			if (state.isAir()) {
+				// a cave's cell: open, and the rock around it goes on being revealed, through the cave
+				caves++;
+				queue(level, cell, r.material());
+				continue;
+			}
 			Rollback.untracked(() -> {
 				level.setBlock(cell, state, Block.UPDATE_ALL);
 				Rollback.forget(cell);
 			});
 		}
-		if (!reveals.isEmpty()) {
+		if (caves > 0 && ++cavesLogged % 50 == 1) {
+			HalfCraft.LOG.info("HalfCraft: a cave opens around {} ({} of its cells now, {} so far)", pos.toShortString(), caves, cavesLogged);
+		}
+		if (!reveals.isEmpty() && caves == 0) {
 			HalfCraft.LOG.info("HalfCraft: {} cells around {} revealed: {}{}", reveals.size(), pos.toShortString(),
 				reveals.stream().map(r -> r.x() + ", " + r.y() + ", " + r.z()).collect(Collectors.joining("; ")),
 				voidOnly ? " (void only: Half-Life lets nothing more be dug)" : "");
 			Rollback.writeForgotten(level.getServer());
 		}
+	}
+
+	/** Blocks a cave opens up to from the nearest player; past it, it waits for a pick. */
+	private static final double CAVE_REACH = 32.0;
+	/** How far up the surface over natural rock is looked for (Underground's depth): deeper is just deep. */
+	private static final double DEPTH_LOOK = 16.0;
+	private static int cavesLogged;
+
+	private static boolean nearPlayer(ServerLevel level, BlockPos cell, double reach) {
+		return level.getNearestPlayer(cell.getX() + 0.5, cell.getY() + 0.5, cell.getZ() + 0.5, reach, false) != null;
+	}
+
+	/** Blocks from the middle of cell (x, y, z) up to Half-Life's first triangle over it; infinity for none in DEPTH_LOOK. */
+	private static double depthUnder(int x, int y, int z) {
+		double fx = x + 0.5, fy = y + 0.5, fz = z + 0.5;
+		List<HostTri> tris = new java.util.ArrayList<>();
+		HostCollision.trianglesNear(new net.minecraft.world.phys.AABB(fx - 0.01, fy, fz - 0.01, fx + 0.01, fy + DEPTH_LOOK, fz + 0.01), tris);
+		HostRay.Hit hit = HostRay.cast(tris, fx, fy, fz, fx, fy + DEPTH_LOOK, fz);
+		return hit == null ? Double.POSITIVE_INFINITY : hit.y() - fy;
 	}
 
 	/** The world around a dug cell as DigRules reads it. Loads no chunk: a cell in one not loaded is left alone (as if dug). */

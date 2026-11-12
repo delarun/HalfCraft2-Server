@@ -162,7 +162,7 @@ class DigRulesTest {
 		World w = new World();
 		w.occupancy.put(new Pos(0, -1, 0), LOWER);
 		w.voids.put(new Pos(0, -1, 0), UPPER);
-		assertEquals(List.of(new DigRules.Reveal(0, -1, 0, DIG_STONE)), reveals(w, 0, 0, 0, DIG_PLANKS, false));
+		assertEquals(List.of(new DigRules.Reveal(0, -1, 0, DIG_PLANKS, true)), reveals(w, 0, 0, 0, DIG_PLANKS, false));
 	}
 
 	@Test
@@ -200,7 +200,7 @@ class DigRulesTest {
 		w.occupancy.put(new Pos(0, 1, 0), LOWER);
 		w.voids.put(new Pos(0, 1, 0), UPPER);
 		w.sky.add(new Pos(0, 1, 0));
-		assertEquals(List.of(new DigRules.Reveal(0, 1, 0, DIG_STONE)), reveals(w, 0, 0, 0, DIG_IRON, false));
+		assertEquals(List.of(new DigRules.Reveal(0, 1, 0, DIG_IRON, true)), reveals(w, 0, 0, 0, DIG_IRON, false));
 	}
 
 	@Test
@@ -210,8 +210,8 @@ class DigRulesTest {
 		w.occupancy.put(new Pos(1, 0, 0), FULL); // inside a thick wall
 		w.occupancy.put(new Pos(0, 0, 1), LOWER); // a wall's back, void behind it
 		w.voids.put(new Pos(0, 0, 1), UPPER);
-		assertEquals(List.of(new DigRules.Reveal(-1, 0, 0, DIG_STONE)), reveals(w, 0, 0, 0, DIG_IRON, true));
-		assertEquals(List.of(new DigRules.Reveal(0, 0, 1, DIG_STONE), new DigRules.Reveal(-1, 0, 0, DIG_STONE), new DigRules.Reveal(1, 0, 0, DIG_IRON)),
+		assertEquals(List.of(new DigRules.Reveal(-1, 0, 0, DIG_IRON, true)), reveals(w, 0, 0, 0, DIG_IRON, true));
+		assertEquals(List.of(new DigRules.Reveal(0, 0, 1, DIG_IRON, true), new DigRules.Reveal(-1, 0, 0, DIG_IRON, true), new DigRules.Reveal(1, 0, 0, DIG_IRON)),
 			reveals(w, 0, 0, 0, DIG_IRON, false));
 	}
 
@@ -229,14 +229,14 @@ class DigRulesTest {
 	@Test
 	void shouldKeepTheFloorAroundAHoleWithTheRoomsAirOverIt() {
 		// the floor's cells by the hole keep Half-Life's face: only the void under the hole becomes a block
-		assertEquals(List.of(new DigRules.Reveal(0, -1, 0, DIG_STONE)), reveals(floorOverVoid(), 0, 0, 0, DIG_STONE_BRICKS, false));
+		assertEquals(List.of(new DigRules.Reveal(0, -1, 0, DIG_STONE_BRICKS, true)), reveals(floorOverVoid(), 0, 0, 0, DIG_STONE_BRICKS, false));
 	}
 
 	@Test
 	void shouldRevealTheSameFloorCellBuriedUnderRock() {
 		World w = floorOverVoid();
 		w.occupancy.put(new Pos(1, 1, 0), FULL); // a wall standing on it: no face of it shows
-		assertEquals(List.of(new DigRules.Reveal(0, -1, 0, DIG_STONE), new DigRules.Reveal(1, 0, 0, DIG_STONE)), reveals(w, 0, 0, 0, DIG_STONE_BRICKS, false));
+		assertEquals(List.of(new DigRules.Reveal(0, -1, 0, DIG_STONE_BRICKS, true), new DigRules.Reveal(1, 0, 0, DIG_STONE_BRICKS, true)), reveals(w, 0, 0, 0, DIG_STONE_BRICKS, false));
 	}
 
 	@Test
@@ -286,8 +286,8 @@ class DigRulesTest {
 		World w = new World();
 		w.voids.put(new Pos(-1, 0, 0), FULL);
 		w.occupancy.put(new Pos(-1, 0, 1), face(3));
-		assertEquals(List.of(new DigRules.Reveal(-1, 0, 0, DIG_STONE)), reveals(w, 0, 0, 0, DIG_IRON, false));
-		assertEquals(List.of(new DigRules.Reveal(-1, 0, 0, DIG_STONE)), reveals(w, 0, 0, 0, DIG_IRON, true));
+		assertEquals(List.of(new DigRules.Reveal(-1, 0, 0, DIG_IRON, true)), reveals(w, 0, 0, 0, DIG_IRON, false));
+		assertEquals(List.of(new DigRules.Reveal(-1, 0, 0, DIG_IRON, true)), reveals(w, 0, 0, 0, DIG_IRON, true));
 		w.occupancy.put(new Pos(-1, 0, 1), face(2)); // the brush on its far side: the void meets the air
 		assertEquals(List.of(), reveals(w, 0, 0, 0, DIG_IRON, false));
 		assertEquals(List.of(), reveals(w, 0, 0, 0, DIG_IRON, true));

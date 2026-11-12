@@ -1618,9 +1618,10 @@ namespace
 		CHECK(!ground.under(1.5, 10.45, 1.5));  // within GROUND_MARGIN of the surface: open, under the feet
 		CHECK(ground.under(1.5, 10.35, 1.5));
 		CHECK(!ground.under(5.5, 9.0, 1.5));  // off the square
-		const double            deep[3] = { 0, 0, 0 };
+		const double            deep[3] = { 0, 8.0 - 8.0 * std::ceil(GROUND_DEPTH / 8.0), 0 };
 		const GroundColumns     far(deep, { up_a, up_b });
-		CHECK(!far.under(1.5, 2.0, 1.5));  // 8.5 blocks down
+		CHECK(far.under(1.5, 10.5 - GROUND_DEPTH + 0.5, 1.5));
+		CHECK(!far.under(1.5, 10.5 - GROUND_DEPTH - 0.5, 1.5));  // deeper than the rock goes
 		// the same square wound the other way faces down: a ceiling, with air under it
 		ColPrimitives::Tri down_a = up_a;
 		std::swap(down_a.v[3], down_a.v[6]);
