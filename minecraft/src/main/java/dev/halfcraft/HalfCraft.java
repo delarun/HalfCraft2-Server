@@ -44,7 +44,8 @@ public final class HalfCraft implements ModInitializer {
 				dev.halfcraft.world.Rollback.unload(server);
 			}
 		});
-		// the halfcraft server's minecraft: its links to the source servers
+		// the halfcraft server's minecraft: its links to the source servers, and the collision it relays to its players
+		dev.halfcraft.world.CollisionRelay.register();
 		HalfCraftServer.init();
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents.CHUNK_UNLOAD.register(dev.halfcraft.world.Rollback::chunkUnloading);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {

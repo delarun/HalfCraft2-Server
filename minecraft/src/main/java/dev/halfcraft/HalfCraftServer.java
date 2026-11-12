@@ -1,6 +1,7 @@
 package dev.halfcraft;
 
 import dev.halfcraft.link.ServerLink;
+import dev.halfcraft.world.CollisionRelay;
 import dev.halfcraft.world.HostCollision;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +29,7 @@ public final class HalfCraftServer {
 			for (ServerLink link : LINKS) {
 				link.tick();
 			}
+			CollisionRelay.tick(server);
 		});
 	}
 
@@ -52,6 +54,7 @@ public final class HalfCraftServer {
 			return;
 		}
 		ServerLink first = LINKS.getFirst();
+		CollisionRelay.startRecording();
 		HostCollision.startConsumer(first);
 		HostCollision.setSmoothCollider(entity -> entity instanceof ServerPlayer && first.active());
 		HalfCraft.LOG.info("HalfCraft: the halfcraft server's minecraft, on server link(s) {}", LINKS.stream().map(ServerLink::id).toList());

@@ -24,6 +24,12 @@ public final class HalfCraftClient implements ClientModInitializer {
 		// triangle collider, never Half-Life's voxels; otherwise the server sees the smooth position
 		// dip into a voxel and teleports the player back every few ticks.
 		dev.halfcraft.world.HostCollision.setSmoothCollider(e -> e instanceof net.minecraft.world.entity.player.Player && HostClient.linked());
+		// on the halfcraft server, half-life's collision comes from the server, which relays its source server's
+		net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.registerGlobalReceiver(dev.halfcraft.world.CollisionRelay.TYPE, (payload, context) -> {
+			for (dev.halfcraft.world.CollisionRelay.Message message : payload.messages()) {
+				dev.halfcraft.world.HostCollision.applyRelayed(message.type(), message.bytes());
+			}
+		});
 		WeaponHud.init();
 	}
 }

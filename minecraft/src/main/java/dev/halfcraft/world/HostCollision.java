@@ -406,6 +406,7 @@ public final class HostCollision {
 				return true;
 			}
 			long payload = data + pos + COL_MSG_HEADER_BYTES;
+			CollisionRelay.record(type, s, payload, payloadBytes);  // the halfcraft server's: for its players
 			switch (type) {
 				case COL_CLEAR -> clear(s.get(JAVA_INT, payload));
 				case COL_REGION -> readRegion(s, payload);
@@ -417,6 +418,24 @@ public final class HostCollision {
 		}
 		from.setTail(tail);
 		return true;
+	}
+
+	/**
+	 * A message the HalfCraft server relayed (CollisionRelay), applied as one of the own ring's: client thread. Its
+	 * bytes go into 8-byte aligned memory first, as a byte[]'s segment can't be read as ints.
+	 */
+	public static void applyRelayed(int type, byte[] bytes) {
+		try (java.lang.foreign.Arena arena = java.lang.foreign.Arena.ofConfined()) {
+			MemorySegment s = arena.allocate(Math.max(8, bytes.length), 8);
+			MemorySegment.copy(MemorySegment.ofArray(bytes), 0, s, 0, bytes.length);
+			switch (type) {
+				case COL_CLEAR -> clear(s.get(JAVA_INT, 0));
+				case COL_REGION -> readRegion(s, 0);
+				case COL_TRIS -> readTris(s, 0);
+				case COL_VOID -> readVoid(s, 0);
+				default -> HalfCraft.LOG.warn("HalfCraft: unknown relayed collision message {}", type);
+			}
+		}
 	}
 
 	private static long align8(long v) {
