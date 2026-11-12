@@ -666,40 +666,87 @@ namespace halfcraft
 
 	namespace
 	{
-		// the store's version the map's detail props were last hidden at (UINT32_MAX: never), and when
-		std::uint32_t g_details_version = UINT32_MAX;
-		double        g_details_since = 0.0;
-		// seconds between two looks at every detail prop of the map, while cells are being dug
-		constexpr double DETAILS_INTERVAL = 0.25;
-
-		/// whether the cell a detail prop stands in is dug: its origin is on the ground, the cell is the one just over it
-		bool detail_dug(const Vector& origin)
+		// the map's detail props (grass, bushes) by the minecraft section the cell over their origin is in: the ones on a
+		// dug cell go out of sight (detailobjectsystem.cpp). looked at only in the sections whose dug cells changed
+		struct DetailProp
 		{
-			const Vector mins(origin.x - 0.5f, origin.y - 0.5f, origin.z + 0.5f), maxs(origin.x + 0.5f, origin.y + 0.5f, origin.z + 1.5f);
-			return box_dug(mins, maxs);
+			int  index;
+			int  x, y, z;  // the cell, minecraft coords
+			bool hidden;
+		};
+		std::map<std::tuple<int, int, int>, std::vector<DetailProp>> g_details;
+		int                                                          g_details_count = -1;  // HalfCraft_DetailCount when g_details was laid out (-1: never)
+		std::uint32_t                                                g_details_version = 0;  // the store's version the sections were looked at for
+		bool                                                         g_details_relaid = true;  // a level loaded: laid out afresh
+
+		int floor_div16(int v)
+		{
+			return v >= 0 ? v / 16 : -((15 - v) / 16);
 		}
 
-		/// the map's detail props (grass, bushes) on dug cells out of sight, back once theirs aren't (detailobjectsystem.cpp):
-		/// when the dug cells changed, at most every DETAILS_INTERVAL
+		/// the props of one section out of sight on its dug cells, back on the others
+		/// @return how many it hid
+		int look_at_section(const DugSection& section)
+		{
+			const auto found = g_details.find({ section.sx, section.sy, section.sz });
+			if (found == g_details.end()) {
+				return 0;
+			}
+			int hidden = 0;
+			for (DetailProp& prop : found->second) {
+				const int  lx = prop.x - section.sx * 16, ly = prop.y - section.sy * 16, lz = prop.z - section.sz * 16;
+				const int  bit = lx + 16 * lz + 256 * ly;
+				const bool dug = section.count > 0 && (section.bits[bit >> 3] >> (bit & 7) & 1) != 0;
+				if (dug != prop.hidden) {
+					HalfCraft_DetailHide(prop.index, dug);
+					prop.hidden = dug;
+				}
+				hidden += dug ? 1 : 0;
+			}
+			return hidden;
+		}
+
+		/// lays the level's detail props out by section (when there are new ones), then hides and shows them in the sections
+		/// whose dug cells changed (every section with dug cells, after a lay-out)
 		void hide_dug_details()
 		{
-			std::uint32_t version = 0;
-			{
-				auto&                       d = store();
-				std::lock_guard<std::mutex> lock(d.lock);
-				version = d.version;
+			const int count = HalfCraft_DetailCount();
+			if (count != g_details_count || g_details_relaid) {
+				MapSlot slot;
+				{
+					auto&                       d = store();
+					std::lock_guard<std::mutex> lock(d.lock);
+					slot = d.slot;
+				}
+				g_details.clear();
+				for (int i = 0; i < count; ++i) {
+					const Vector origin = HalfCraft_DetailOrigin(i);
+					HalfCraft_DetailHide(i, false);
+					const float over[3] = { origin.x, origin.y, origin.z + 1.0f };
+					const McVec at = source_to_mc(over, slot);
+					const int   x = static_cast<int>(std::floor(at.x)), y = static_cast<int>(std::floor(at.y)), z = static_cast<int>(std::floor(at.z));
+					g_details[{ floor_div16(x), floor_div16(y), floor_div16(z) }].push_back({ i, x, y, z, false });
+				}
+				g_details_count = count;
+				g_details_relaid = false;
+				g_details_version = 0;
 			}
-			const double now = Plat_FloatTime();
-			if (version == g_details_version || now - g_details_since < DETAILS_INTERVAL) {
+			std::uint32_t now = 0;
+			const int     changed = dug_since(g_details_version, nullptr, 0, &now);
+			if (now == g_details_version || changed <= 0) {
+				g_details_version = now;
 				return;
 			}
-			const bool first = g_details_version == UINT32_MAX;
-			g_details_version = version;
-			g_details_since = now;
-			const int hidden = HalfCraft_HideDugDetailObjects(detail_dug);
-			if (first || hidden > 0) {
-				log_info("dig: %d of the map's detail props (grass, bushes) out of sight on dug cells", hidden);
+			std::vector<DugSection> sections(static_cast<std::size_t>(changed));
+			const int               got = std::min(changed, dug_since(g_details_version, sections.data(), changed, &now));
+			int                     hidden = 0;
+			for (int i = 0; i < got; ++i) {
+				hidden += look_at_section(sections[i]);
 			}
+			if (g_details_version == 0 && hidden > 0) {
+				log_info("dig: %d of the map's %d detail props (grass, bushes) out of sight on dug cells", hidden, count);
+			}
+			g_details_version = now;
 		}
 	}
 
@@ -725,7 +772,7 @@ namespace halfcraft
 	void dig_level_loaded()
 	{
 		g_mask_resync.store(true, std::memory_order_release);
-		g_details_version = UINT32_MAX;  // the level's detail props are new: all of them looked at again
+		g_details_relaid = true;  // the level's detail props are new: laid out and looked at again
 	}
 
 	void dig_post_render_vgui()

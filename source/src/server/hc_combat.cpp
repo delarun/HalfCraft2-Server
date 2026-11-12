@@ -307,6 +307,9 @@ namespace halfcraft
 		if (players.empty() || !link.mc_alive()) {
 			proto::McEvent event;
 			while (link.pop_event(event)) {
+				if (event.type == proto::kEvDifficulty) {
+					sandbox_set_peaceful(event.a < 0.5f);  // the world's, with nobody in it too
+				}
 			}
 			if (actors_sent_) {
 				link.write_actors(nullptr, 0);
@@ -376,6 +379,9 @@ namespace halfcraft
 				break;
 			case proto::kEvPropModel:
 				prop_model_piece(static_cast<int>(event.playerId), event.actorId, event.attackerId, model_words(event).data());
+				break;
+			case proto::kEvDifficulty:
+				sandbox_set_peaceful(event.a < 0.5f);
 				break;
 			case proto::kEvPlaceProp: {
 				const std::string model = take_prop_model(static_cast<int>(event.playerId));
