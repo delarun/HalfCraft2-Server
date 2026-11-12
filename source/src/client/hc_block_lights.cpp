@@ -89,6 +89,15 @@ namespace halfcraft
 		ConVar          hc_torch_light_count("hc_torch_light_count", "4", FCVAR_ARCHIVE,
 			"halfcraft: how many minecraft lights (the ones on screen first, then the nearest) light half-life's world per pixel, with shadows (up to 4; each renders up to twelve shadow maps a frame)");
 
+		/// whether the camera is in the rock behind the map's walls: in no cluster of the map, its own spot isn't in its
+		/// view cluster's pvs (inside the map it always is)
+		bool camera_outside_map()
+		{
+			const Vector& eye = MainViewOrigin();
+			const Vector  extent(1.0f, 1.0f, 1.0f);
+			return !engine->IsBoxInViewCluster(eye - extent, eye + extent);
+		}
+
 		struct LightSource
 		{
 			std::int32_t  x, y, z;  // minecraft block
@@ -628,7 +637,9 @@ namespace halfcraft
 			const auto keep = std::min<std::size_t>(chosen_.size(), MAX_LIGHTS);
 			std::partial_sort(chosen_.begin(), chosen_.begin() + keep, chosen_.end(), [](const Cluster& a, const Cluster& b) { return a.score < b.score; });
 			chosen_.resize(keep);
-			const bool pvs_only = hc_torch_light_pvs.GetBool();
+			// the camera in the rock behind the map's walls (a dug tunnel) is in no cluster, and sees none: every light is
+			// then. a pipe lit by torches alone went black from the tunnel dug out of it
+			const bool pvs_only = hc_torch_light_pvs.GetBool() && !camera_outside_map();
 			for (Cluster& c : chosen_) {
 				c.origin = clear_of_walls(c.origin);
 				// a light whose spot the camera's cluster can't see lights little on screen: the shadowed
@@ -727,7 +738,7 @@ namespace halfcraft
 		void BlockLights::refresh(float now, float frametime)
 		{
 			const float brightness = std::max(0.0f, hc_torch_light.GetFloat());
-			const int shadowed = std::clamp(hc_torch_light_count.GetInt(), 0, MAX_POINT_LIGHTS);
+			const int   shadowed = std::clamp(hc_torch_light_count.GetInt(), 0, MAX_POINT_LIGHTS);
 			assign_slots(shadowed, frametime);
 			for (std::size_t i = 0; i < slots_.size(); ++i) {
 				Slot& s = slots_[i];
