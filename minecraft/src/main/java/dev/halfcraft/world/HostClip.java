@@ -93,7 +93,7 @@ public final class HostClip {
 	 * Server thread; once a second per region column.
 	 */
 	public static void wantBelow(double x, double y, double z) {
-		if (!HostLink.active()) {
+		if (!dev.halfcraft.link.HostSide.active()) {
 			return;
 		}
 		int size = HostCollision.REGION_SIZE;
@@ -107,7 +107,7 @@ public final class HostClip {
 			WANTED.clear();
 		}
 		WANTED.put(column, now);
-		HostLink.pushEvent(Proto.EV_COLLISION_WANTED, 0, (float) x, (float) y, (float) z, 0.0F, 0);
+		dev.halfcraft.link.HostSide.pushEvent(Proto.EV_COLLISION_WANTED, 0, (float) x, (float) y, (float) z, 0.0F, 0);
 	}
 
 	/** Whether a projectile at (x, y, z) in the mirror world is somewhere it may be (see {@link #refineProjectile}). */

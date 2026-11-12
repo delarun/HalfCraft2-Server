@@ -89,6 +89,11 @@ public final class ServerLink implements CollisionSource {
 		return s != null && SYSTEM.tickCount() - (long) LONG.getAcquire(s, OFF_HEADER + H_HOST_HEARTBEAT) < HEARTBEAT_TIMEOUT_MS;
 	}
 
+	/** Seqlock read of server.so's actor table: the npcs and breakables near its players. */
+	public boolean readActors(java.util.List<ProtoStructs.ActorRecord> out) {
+		return HostLink.readActors(this.shm, out);
+	}
+
 	@Override
 	public @Nullable MemorySegment segment() {
 		return this.shm;

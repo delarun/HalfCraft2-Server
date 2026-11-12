@@ -213,7 +213,11 @@ namespace halfcraft
 			}
 			weapons_.update(link_, player, minecraft_owns_health());
 			// minecraft's weapons work on ladders, rides and in vehicles too: only the movement is source's
-			combat_.update(link_, player, slot_, minecraft_owns_health());
+			if (dedicated_) {
+				combat_.update_players(link_, slot_);  // every player's, through the halfcraft server's minecraft
+			} else {
+				combat_.update(link_, player, slot_, minecraft_owns_health());
+			}
 			for (const proto::McEvent& news : combat_.take_held_block_news()) {
 				held_blocks_.on_news(news);
 			}

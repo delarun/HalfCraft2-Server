@@ -77,7 +77,7 @@ public final class HostMobs {
 		HostWater.endTick();
 		// the mobs near the host's player (not the first in the list, which a respawned host isn't); guests' are M2
 		ServerPlayer host = HostPlayers.host(server);
-		if (!HostLink.active() || host == null) {
+		if (!dev.halfcraft.link.HostSide.active() || host == null) {
 			NEARBY.clear();
 		} else {
 			sendMobHits();
@@ -142,7 +142,7 @@ public final class HostMobs {
 	private static void sendMobHits() {
 		for (HostActorEntity proxy : HostCombat.proxies()) {
 			for (HostActorEntity.MobHit hit : proxy.takeMobHits()) {
-				HostLink.pushEvent(EV_HIT_ACTOR, proxy.actorId(), hit.damage, (float) hit.pushX, (float) hit.pushZ, hit.pushStrength, hit.flags, hit.weapon,
+				dev.halfcraft.link.HostSide.pushEvent(EV_HIT_ACTOR, proxy.actorId(), hit.damage, (float) hit.pushX, (float) hit.pushZ, hit.pushStrength, hit.flags, hit.weapon,
 					hit.attackerId);
 				HalfCraft.LOG.info("HalfCraft: {} (mob {}) hit {} for {} (knockback {})", hit.attackerName, hit.attackerId, proxy.getName().getString(), hit.damage,
 					hit.pushStrength);

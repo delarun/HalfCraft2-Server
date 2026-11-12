@@ -355,8 +355,12 @@ public final class HostLink {
 
 	/** Seqlock read of the actor table. Returns false (leaving {@code out} empty) on a torn read. */
 	public static boolean readActors(java.util.List<ProtoStructs.ActorRecord> out) {
+		return readActors(shm, out);
+	}
+
+	/** Seqlock read of a mapping's actor table (this link's or a server link's). */
+	static boolean readActors(MemorySegment s, java.util.List<ProtoStructs.ActorRecord> out) {
 		out.clear();
-		MemorySegment s = shm;
 		if (s == null) {
 			return false;
 		}

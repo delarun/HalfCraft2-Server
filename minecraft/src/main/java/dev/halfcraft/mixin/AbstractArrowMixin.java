@@ -106,7 +106,7 @@ public abstract class AbstractArrowMixin {
 	@WrapOperation(method = "onHitEntity", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;setArrowCount(I)V"))
 	private void halfcraft$stickInHostActor(LivingEntity mob, int count, Operation<Void> original) {
 		original.call(mob, count);
-		if (!(mob instanceof HostActorEntity actor) || this.halfcraft$hitAt == null || !HostLink.active()) {
+		if (!(mob instanceof HostActorEntity actor) || this.halfcraft$hitAt == null || !dev.halfcraft.link.HostSide.active()) {
 			return;
 		}
 		AbstractArrow self = (AbstractArrow) (Object) this;
@@ -115,6 +115,6 @@ public abstract class AbstractArrowMixin {
 		float pitch = (float) (Mth.atan2(v.y, v.horizontalDistance()) * Mth.RAD_TO_DEG);
 		int texture = self instanceof SpectralArrow ? 2 : self instanceof Arrow tippable && tippable.getColor() > 0 ? 1 : 0;
 		Vec3 at = this.halfcraft$hitAt;
-		HostLink.pushEvent(Proto.EV_ARROW_STUCK, actor.actorId(), (float) at.x, (float) at.y, (float) at.z, yaw, Float.floatToRawIntBits(pitch), texture);
+		dev.halfcraft.link.HostSide.pushEvent(Proto.EV_ARROW_STUCK, actor.actorId(), (float) at.x, (float) at.y, (float) at.z, yaw, Float.floatToRawIntBits(pitch), texture);
 	}
 }

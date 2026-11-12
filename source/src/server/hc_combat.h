@@ -33,6 +33,9 @@ namespace halfcraft
 		///   mirrored). also while source has the player (a ladder, a ride, a vehicle): only the
 		///   movement is source's then
 		void update(Link& link, CBasePlayer* player, MapSlot slot, bool minecraft_playing);
+		/// a dedicated server's (the halfcraft server's): the actors near any of its players go to its minecraft, and a
+		/// hit from there lands as the nearest player's to the target (which player struck isn't in the event yet)
+		void update_players(Link& link, MapSlot slot);
 
 		/// where minecraft's projectiles wait for the collision under them (proto::kEvCollisionWanted)
 		/// since the last call.
@@ -44,6 +47,7 @@ namespace halfcraft
 
 	private:
 		void write_actors(Link& link, CBasePlayer* player, MapSlot slot);
+		void write_actors(Link& link, const std::vector<CBasePlayer*>& players, MapSlot slot);
 		void apply_hit(CBasePlayer* player, const proto::McEvent& event);
 		void apply_explosion(CBasePlayer* player, const proto::McEvent& event, MapSlot slot);
 		/// hands a minecraft arrow that stuck in an npc to client.dll, which draws it on the npc.

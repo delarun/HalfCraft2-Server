@@ -19,6 +19,7 @@
 #include "server/hc_blast.h"
 #include "server/hc_combat.h"
 #include "server/hc_mobs.h"
+#include "server/hc_players.h"
 #include "server/hc_vitals.h"
 #include "shared/hc_hooks.h"
 #include "shared/hc_bridge.h"
@@ -261,11 +262,80 @@ namespace halfcraft
 		return out;
 	}
 
+	void Combat::update_players(Link& link, MapSlot slot)
+	{
+		std::vector<CBasePlayer*> players;
+		for_each_player([&](CBasePlayer& player) {
+			if (player.IsAlive()) {
+				players.push_back(&player);
+			}
+		});
+		if (players.empty() || !link.mc_alive()) {
+			proto::McEvent event;
+			while (link.pop_event(event)) {
+			}
+			if (actors_sent_) {
+				link.write_actors(nullptr, 0);
+				actors_sent_ = false;
+			}
+			g_actors.clear();
+			return;
+		}
+		write_actors(link, players, slot);
+		auto nearest = [&](const Vector& at) {
+			CBasePlayer* best = players.front();
+			for (CBasePlayer* player : players) {
+				if ((player->GetAbsOrigin() - at).LengthSqr() < (best->GetAbsOrigin() - at).LengthSqr()) {
+					best = player;
+				}
+			}
+			return best;
+		};
+		proto::McEvent event;
+		while (link.pop_event(event)) {
+			switch (event.type) {
+			case proto::kEvHitActor: {
+				const auto   found = g_actors.find(event.actorId);
+				CBaseEntity* target = found != g_actors.end() ? found->second.Get() : nullptr;
+				apply_hit(target ? nearest(target->GetAbsOrigin()) : players.front(), event);
+				break;
+			}
+			case proto::kEvArrowStuck:
+				stick_arrow(event, slot);
+				break;
+			case proto::kEvCollisionWanted:
+				collision_wanted_.push_back({ event.a, event.b, event.c });
+				break;
+			case proto::kEvCollisionLost:
+				collision_lost_ = true;
+				break;
+			default:
+				break;  // a player's death, explosions, the gravity gun's blocks: per player, later (S2)
+			}
+		}
+	}
+
 	void Combat::write_actors(Link& link, CBasePlayer* player, MapSlot slot)
+	{
+		write_actors(link, std::vector<CBasePlayer*>{ player }, slot);
+	}
+
+	void Combat::write_actors(Link& link, const std::vector<CBasePlayer*>& players, MapSlot slot)
 	{
 		records_.clear();
 		g_actors.clear();
-		const Vector& eye = player->GetAbsOrigin();
+		auto nearer = [&](const Vector& at) {
+			CBasePlayer* best = nullptr;
+			float        best_distance = 0.0f;
+			for (CBasePlayer* candidate : players) {
+				const float distance = (candidate->GetAbsOrigin() - at).LengthSqr();
+				if (!best || distance < best_distance) {
+					best = candidate;
+					best_distance = distance;
+				}
+			}
+			return std::make_pair(best, best_distance);
+		};
 
 		auto add = [&](CBaseEntity* entity, std::uint32_t flags, bool named) {
 			if (records_.size() >= proto::kMaxActors) {
@@ -302,20 +372,24 @@ namespace halfcraft
 			if (!npc || !npc->IsAlive() || npc->IsEffectActive(EF_NODRAW) || npc->m_takedamage == DAMAGE_NO) {
 				continue;
 			}
-			if ((npc->GetAbsOrigin() - eye).LengthSqr() > NPC_RANGE * NPC_RANGE) {
+			const auto [near, distance] = nearer(npc->GetAbsOrigin());
+			if (distance > NPC_RANGE * NPC_RANGE) {
 				continue;
 			}
-			const std::uint32_t flags = (npc->IRelationType(player) == D_HT ? proto::kActorHostile : 0u) | (npc->GetEnemy() == player ? proto::kActorInCombat : 0u);
+			const std::uint32_t flags = (npc->IRelationType(near) == D_HT ? proto::kActorHostile : 0u) | (npc->GetEnemy() == near ? proto::kActorInCombat : 0u);
 			add(npc, flags, true);
 		}
 
 		// crates, breakable props and glass
 		CBaseEntity* nearby[MAX_NEARBY];
 		const Vector reach(PROP_RANGE, PROP_RANGE, PROP_RANGE);
-		const int    count = UTIL_EntitiesInBox(nearby, MAX_NEARBY, eye - reach, eye + reach, 0);
-		for (int i = 0; i < count; ++i) {
-			if (is_breakable(nearby[i])) {
-				add(nearby[i], 0u, false);
+		for (CBasePlayer* around : players) {
+			const Vector& eye = around->GetAbsOrigin();
+			const int     count = UTIL_EntitiesInBox(nearby, MAX_NEARBY, eye - reach, eye + reach, 0);
+			for (int i = 0; i < count; ++i) {
+				if (is_breakable(nearby[i]) && g_actors.find(actor_id(nearby[i])) == g_actors.end()) {
+					add(nearby[i], 0u, false);
+				}
 			}
 		}
 

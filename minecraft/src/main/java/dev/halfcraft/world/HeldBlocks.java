@@ -103,14 +103,14 @@ public final class HeldBlocks {
 		BlockState state = level != null && level.isLoaded(pos) ? level.getBlockState(pos) : Blocks.AIR.defaultBlockState();
 		if (level == null || !takeable(state, level, pos)) {
 			// changed since Half-Life saw it (or never was one it could take)
-			HostLink.pushEvent(Proto.EV_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, Proto.HELD_REFUSED, 0);
+			dev.halfcraft.link.HostSide.pushEvent(Proto.EV_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, Proto.HELD_REFUSED, 0);
 			return;
 		}
 		// out of the world as if broken (its neighbours react), with nothing dropped
 		level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
 		HELD.put(slot, new Held(state, pos.immutable()));
 		int material = material(state);
-		HostLink.pushEvent(Proto.EV_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, Proto.HELD_TAKEN, material);
+		dev.halfcraft.link.HostSide.pushEvent(Proto.EV_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, Proto.HELD_TAKEN, material);
 		HalfCraft.LOG.info("HalfCraft: the gravity gun tore {} out at {} (held slot {}, material {})", name(state), pos.toShortString(), slot, material);
 	}
 
@@ -119,11 +119,11 @@ public final class HeldBlocks {
 		ServerLevel level = mirror(server);
 		if (held == null || level == null) {
 			// nothing remembered for it (Minecraft started over meanwhile): the cube just goes
-			HostLink.pushEvent(Proto.EV_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, Proto.HELD_DROPPED, 0);
+			dev.halfcraft.link.HostSide.pushEvent(Proto.EV_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, Proto.HELD_DROPPED, 0);
 			return;
 		}
 		boolean placed = put(level, held.state(), cell);
-		HostLink.pushEvent(Proto.EV_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, placed ? Proto.HELD_PLACED : Proto.HELD_DROPPED, 0);
+		dev.halfcraft.link.HostSide.pushEvent(Proto.EV_HELD_BLOCK, slot, 0.0F, 0.0F, 0.0F, 0.0F, placed ? Proto.HELD_PLACED : Proto.HELD_DROPPED, 0);
 		HalfCraft.LOG.info("HalfCraft: held slot {} came to rest at {}: {} {}", slot, cell.toShortString(), name(held.state()),
 			placed ? "back in the world" : "dropped, no room");
 	}

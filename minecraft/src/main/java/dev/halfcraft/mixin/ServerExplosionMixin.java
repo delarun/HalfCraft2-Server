@@ -118,10 +118,10 @@ public abstract class ServerExplosionMixin {
 	private void halfcraft$tellHost(CallbackInfoReturnable<Integer> cir) {
 		ServerExplosion self = (ServerExplosion) (Object) this;
 		// one of Half-Life's own blasts, here only to break Minecraft's blocks (HostBlockDamage)
-		if (!HostLink.active() || HostBlasts.isWindBurst(self) || HostBlockDamage.blasting() || !HostNav.inMirror(self.level())) {
+		if (!dev.halfcraft.link.HostSide.active() || HostBlasts.isWindBurst(self) || HostBlockDamage.blasting() || !HostNav.inMirror(self.level())) {
 			return;
 		}
 		var center = self.center();
-		HostLink.pushEvent(Proto.EV_EXPLOSION, 0, (float) center.x, (float) center.y, (float) center.z, self.radius(), 0, 0, HostBlasts.culpritId(self));
+		dev.halfcraft.link.HostSide.pushEvent(Proto.EV_EXPLOSION, 0, (float) center.x, (float) center.y, (float) center.z, self.radius(), 0, 0, HostBlasts.culpritId(self));
 	}
 }

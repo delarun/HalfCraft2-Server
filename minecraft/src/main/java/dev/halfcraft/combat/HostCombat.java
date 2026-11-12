@@ -86,22 +86,24 @@ public final class HostCombat {
 	private static void serverTick(MinecraftServer server) {
 		// the stand-ins live in the host's player's level (not the first player's, which a respawned host isn't)
 		ServerPlayer host = HostPlayers.host(server);
-		if (!HostLink.active() || host == null) {
+		// the halfcraft server has no host: its stand-ins live in the mirror world, the overworld
+		boolean dedicated = dev.halfcraft.link.HostSide.dedicated() != null;
+		if (!dev.halfcraft.link.HostSide.active() || (host == null && !dedicated)) {
 			removeAll();
 			return;
 		}
-		ServerLevel level = host.level();
+		ServerLevel level = host != null ? host.level() : server.overworld();
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			pickUpNearby(player);
 		}
-		if (HostLink.readActors(ACTORS)) {
+		if (dev.halfcraft.link.HostSide.readActors(ACTORS)) {
 			sync(level);
 		}
 		// Hits land during the tick (melee, sweeps, arrows, fire); send one combined hit per actor.
 		for (HostActorEntity proxy : PROXIES.values()) {
 			float[] hit = proxy.takeHit();
 			if (hit != null && (hit[0] > 0.0F || hit[3] > 0.0F)) {
-				HostLink.pushEvent(
+				dev.halfcraft.link.HostSide.pushEvent(
 					Proto.EV_HIT_ACTOR, proxy.actorId(), hit[0], hit[1], hit[2], hit[3], Float.floatToRawIntBits(hit[4]), Float.floatToRawIntBits(hit[5])
 				);
 				HalfCraft.LOG.info("HalfCraft: hit {} for {} (knockback {})", proxy.getName().getString(), hit[0], hit[3]);
