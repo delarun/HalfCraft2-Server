@@ -2,8 +2,11 @@
 
 python tools/server/rcon.py status
 python tools/server/rcon.py --port 27016 "ent_text prop_vehicle_jeep" status
+python tools/server/rcon.py --minecraft "give Gordon minecraft:tnt 64"
 
-the password is build/server/rcon.txt, which tools/server/srcds.py makes once (random) and gives every server it runs.
+the password is build/server/rcon.txt, which tools/server/srcds.py makes once (random) and gives every server it runs;
+make mc-server's minecraft (minecraft/run/server/server.properties) has it too. minecraft's rcon (--minecraft, port
+25575) answers a command in one packet and drops the connection on the empty request that marks a source reply's end.
 """
 
 import argparse
@@ -50,7 +53,7 @@ def receive(sock: socket.socket) -> tuple[int, int, str]:
     return request, kind, body[:-2].decode("utf-8", errors="replace")
 
 
-def run(commands: list[str], *, host: str, port: int) -> str:
+def run(commands: list[str], *, host: str, port: int, minecraft: bool = False) -> str:
     """runs each command and returns what the server answered, in order."""
     with socket.create_connection((host, port), timeout=SECONDS) as sock:
         sock.sendall(packet(1, AUTH, password()))
@@ -62,6 +65,10 @@ def run(commands: list[str], *, host: str, port: int) -> str:
                 break
         out = []
         for number, command in enumerate(commands, start=10):
+            if minecraft:
+                sock.sendall(packet(number, EXEC, command))
+                out.append(receive(sock)[2] + "\n")
+                continue
             # an empty RESPONSE request after the command: its echo marks the end of a reply split over packets
             sock.sendall(packet(number, EXEC, command) + packet(number + 1000, RESPONSE, ""))
             while True:
@@ -76,9 +83,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="rcon commands into halfcraft's dedicated server")
     parser.add_argument("commands", nargs="+")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=27015)
+    parser.add_argument("--port", type=int)
+    parser.add_argument("--minecraft", action="store_true", help="the halfcraft server's minecraft (port 25575)")
     options = parser.parse_args()
-    print(run(options.commands, host=options.host, port=options.port), end="")
+    port = options.port or (25575 if options.minecraft else 27015)
+    print(run(options.commands, host=options.host, port=port, minecraft=options.minecraft), end="")
 
 
 if __name__ == "__main__":
