@@ -19,6 +19,10 @@ namespace halfcraft
 {
 	/// how far under the ground (blocks) minecraft finds rock: deeper holes come out under half-life's terrain
 	inline constexpr float GROUND_DEPTH = 8.0f;
+	/// and how far under the surface the rock starts (blocks): a sub-voxel of rock reaches 1/16 over its centre, and a
+	/// player walking on the ground's triangles with their feet in rock fell through it (minecraft lets a box out of a
+	/// shape it's in). more than 1/16, for slopes up to ~58 degrees: the rock's top stays under the feet
+	inline constexpr float GROUND_MARGIN = 0.1f;
 
 	namespace ground_detail
 	{
@@ -166,14 +170,14 @@ namespace halfcraft
 		}
 
 		/// whether the point (minecraft blocks, inside the region) lies under the ground: the first triangle the line up
-		/// from it meets faces up, at most GROUND_DEPTH over it.
+		/// from it meets faces up, at least GROUND_MARGIN and at most GROUND_DEPTH over it.
 		bool under(double x, double y, double z) const
 		{
 			const int cx = std::clamp(static_cast<int>(std::floor((x - origin_[0]) * 8.0)), 0, REGION_VOXELS - 1);
 			const int cz = std::clamp(static_cast<int>(std::floor((z - origin_[2]) * 8.0)), 0, REGION_VOXELS - 1);
 			for (const Cross& cross : columns_[static_cast<std::size_t>(cz * REGION_VOXELS + cx)]) {
 				if (cross.y > y) {
-					return cross.up && cross.y - y <= GROUND_DEPTH;
+					return cross.up && cross.y - y >= GROUND_MARGIN && cross.y - y <= GROUND_DEPTH;
 				}
 			}
 			return false;

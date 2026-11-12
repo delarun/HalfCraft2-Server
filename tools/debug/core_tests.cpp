@@ -1602,6 +1602,8 @@ namespace
 		CHECK(ground.under(1.5, 10.0, 1.5));
 		CHECK(ground.under(1.5, 8.1, 1.5));
 		CHECK(!ground.under(1.5, 11.0, 1.5));
+		CHECK(!ground.under(1.5, 10.45, 1.5));  // within GROUND_MARGIN of the surface: open, under the feet
+		CHECK(ground.under(1.5, 10.35, 1.5));
 		CHECK(!ground.under(5.5, 9.0, 1.5));  // off the square
 		const double            deep[3] = { 0, 0, 0 };
 		const GroundColumns     far(deep, { up_a, up_b });
