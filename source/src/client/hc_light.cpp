@@ -17,6 +17,7 @@ namespace halfcraft
 	{
 		constexpr float MIN_LIGHT = 0.03f;  // pitch black reads as missing geometry
 		constexpr float TORCH_COLOR[3] = { 1.0f, 0.85f, 0.6f };
+		constexpr float BLOCK_OVERBRIGHT = 2.0f;  // as source's lightmaps
 		constexpr float CACHE_STEP = 10.0f;  // units: a quarter block
 
 		ConVar hc_block_light("hc_block_light", "2", FCVAR_ARCHIVE, "halfcraft: brightness of minecraft's blocks in the map's light (source's own overbright is 2)");
@@ -49,7 +50,11 @@ namespace halfcraft
 
 	void lit_color(const std::uint8_t rgba[4], float shade, const Vector& map_light, int block_light, std::uint8_t out[4])
 	{
-		const float block = static_cast<float>(std::clamp(block_light, 0, 15)) / 15.0f;
+		// minecraft's own light from torches, lamps and lava, on the scale the map's light is on: minecraft's brightness
+		// curve (its lightmap's), source's overbright and gamma. taken linear, a torch's 7 of 15 on a face left dark
+		// stone black once half-life's point lights were off near holes
+		const float level = static_cast<float>(std::clamp(block_light, 0, 15)) / 15.0f;
+		const float block = to_gamma(BLOCK_OVERBRIGHT * level / (4.0f - 3.0f * level));
 		for (int c = 0; c < 3; ++c) {
 			const float light = std::max({ map_light[c], block * TORCH_COLOR[c], MIN_LIGHT });
 			out[c] = static_cast<std::uint8_t>(std::clamp(rgba[c] * shade * light, 0.0f, 255.0f));

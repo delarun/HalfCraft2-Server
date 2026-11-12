@@ -106,6 +106,7 @@ public final class WorldExporter {
 	private static final java.util.Map<Item, float[]> ICONS = new java.util.HashMap<>();
 	private static final java.util.Map<BlockState, float[]> CUBE_FACES = new java.util.HashMap<>();
 	private static final RandomSource RANDOM = RandomSource.create();
+	private static int lightLogs;
 
 	private WorldExporter() {
 	}
@@ -371,6 +372,10 @@ public final class WorldExporter {
 					HalfCraft.LOG.info("HalfCraft: sent {} dug cells of section {} {} {} to Half-Life ({} wall quads, {} cut at Half-Life's surface; walls {} ms, cutting {} ms over {} triangles)",
 						dugCount, sx, sy, sz, walls.quads(), walls.cut(), millis(wallsNanos), millis(walls.cuttingNanos()), walls.triangles());
 				}
+			}
+			if (lightCount > 0 && lightLogs++ < 40) {
+				// how bright Minecraft's own light makes this section's blocks (Half-Life lights them with it)
+				HalfCraft.LOG.info("HalfCraft: section {} {} {} has {} light(s): its vertices' block light up to {} of 15", sx, sy, sz, lightCount, MESH.maxBlockLight());
 			}
 			if (++meshesSent <= 10 || meshesSent % 200 == 0) {
 				HalfCraft.LOG.info("HalfCraft: block mesh for section {} {} {}: {} vertices ({} sections in Half-Life)", sx, sy, sz, MESH.vertexCount(), SENT.size());
@@ -664,6 +669,15 @@ public final class WorldExporter {
 
 		int vertexCount() {
 			return this.vertices;
+		}
+
+		/** The brightest block light of the vertices so far (RenVertex: 20 bytes of floats, 4 of colour, the light). */
+		int maxBlockLight() {
+			int max = 0;
+			for (int i = 0; i < this.vertices; i++) {
+				max = Math.max(max, this.buf.getInt(i * 32 + 24) & 0xF);
+			}
+			return max;
 		}
 
 		ByteBuffer bytes() {
