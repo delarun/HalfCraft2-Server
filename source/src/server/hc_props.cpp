@@ -87,8 +87,8 @@ namespace halfcraft
 			default:
 				break;
 			}
-			const IPhysicsObject* physics = entity->VPhysicsGetObject();
-			return std::clamp(physics ? physics->GetMass() / KG_PER_DAMAGE : 5.0f, 3.0f, 30.0f);
+			const IPhysicsObject* object = entity->VPhysicsGetObject();
+			return std::clamp(object ? object->GetMass() / KG_PER_DAMAGE : 5.0f, 3.0f, 30.0f);
 		}
 
 		/// a string to a player's minecraft on a StringChannel: the server link's (for their userid), or client.dll's.
@@ -221,11 +221,11 @@ namespace halfcraft
 		const float toll = toll_of(prop, entry);
 		if (taken < toll) {
 			// a hit that doesn't break it pushes it a little, away from the player
-			if (IPhysicsObject* physics = prop->VPhysicsGetObject(); physics && physics->IsMoveable()) {
+			if (IPhysicsObject* object = prop->VPhysicsGetObject(); object && object->IsMoveable()) {
 				Vector away = prop->WorldSpaceCenter() - player->EyePosition();
 				VectorNormalize(away);
 				const Vector velocity = away * NUDGE_SPEED;
-				physics->AddVelocity(&velocity, nullptr);
+				object->AddVelocity(&velocity, nullptr);
 			}
 			return;
 		}
