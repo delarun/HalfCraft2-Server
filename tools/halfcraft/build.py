@@ -22,8 +22,9 @@ VPC_SECONDS = 600
 MSBUILD_SECONDS = 3600
 COMPILE_SECONDS = 600
 # ShaderCompile2 on one shader: hc_lightmappedgeneric_ps2x.fxc's full combo set takes 43 minutes with DigClip (21.9
-# with dig stage 1's box); about twice that
-SHADER_SECONDS = 5400
+# with dig stage 1's box); about twice that. HALFCRAFT_SHADER_SECONDS sets another budget: github's 4-core windows
+# runner takes over 90 minutes on it (package.yml)
+SHADER_SECONDS = int(os.environ.get("HALFCRAFT_SHADER_SECONDS") or 5400)
 # msbuild /m puts its node's number in front of each line
 NODE = re.compile(r"^\s*\d+>")
 PROJECT = re.compile(r" \[[^\]]+\]$")

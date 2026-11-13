@@ -15,9 +15,12 @@ jobs:
   windows:
     name: Windows zip
     runs-on: windows-2025
-    timeout-minutes: 120
+    # the shaders from scratch take hours on this runner's 4 cores (hc_lightmappedgeneric_ps2x.fxc alone over 90
+    # minutes); a cached build\shaders brings that down to the ones whose source changed
+    timeout-minutes: 350
     env:
       HALFCRAFT_VERSION: ${{ inputs.version }}
+      HALFCRAFT_SHADER_SECONDS: "14400"
       GRADLE_OPTS: -Dorg.gradle.daemon=false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -33,6 +36,13 @@ jobs:
           cache-provider: basic
       - name: SDK trees
         run: python tools/build/setup_sdk.py
+      # ShaderCompile2 skips a shader whose source and includes have the crc its .vcs was compiled from, so an older
+      # stage (restore-keys) only saves the shaders that didn't change (tools/halfcraft/build.py build_shaders)
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/shaders
+          key: shaders-${{ hashFiles('source/sdk/*.patch', 'tools/halfcraft/sdk.py', 'tools/halfcraft/shaders.py') }}
+          restore-keys: shaders-
       - name: Minecraft mod
         run: python tools/build/gradle.py assemble
       - name: Half-Life side
