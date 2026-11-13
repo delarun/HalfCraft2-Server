@@ -169,7 +169,7 @@ index 8daa9f65..a005ffb5 100644
  
  		// Associate the shadow depth texture and stencil bit with the flashlight for use during scene rendering
 diff --git a/src/game/client/detailobjectsystem.cpp b/src/game/client/detailobjectsystem.cpp
-index 3518fa90..9d0215df 100644
+index 3518fa90..abd0c3c7 100644
 --- a/src/game/client/detailobjectsystem.cpp
 +++ b/src/game/client/detailobjectsystem.cpp
 @@ -124,6 +124,8 @@ public:
@@ -274,7 +274,7 @@ index 3518fa90..9d0215df 100644
  	{
  		MemAlloc_FreeAligned( m_pFastSpriteData );
  		m_pFastSpriteData = NULL;
-+	m_nHalfCraftFastSpriteX4Count = 0;
++		m_nHalfCraftFastSpriteX4Count = 0;
  	}
  	FreeSortBuffers();
  
@@ -282,7 +282,7 @@ index 3518fa90..9d0215df 100644
  	{
  		MemAlloc_FreeAligned( m_pFastSpriteData );
  		m_pFastSpriteData = NULL;
-+	m_nHalfCraftFastSpriteX4Count = 0;
++		m_nHalfCraftFastSpriteX4Count = 0;
  	}
  	FreeSortBuffers();
  

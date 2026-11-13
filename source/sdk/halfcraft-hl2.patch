@@ -276,6 +276,152 @@ index c37e7650..1a89529b 100644
  		view->UpdateShadowDepthTexture( m_DummyColorTexture, shadowDepthTexture, shadowView );
  
  		// Associate the shadow depth texture and stencil bit with the flashlight for use during scene rendering
+diff --git a/sp/src/game/client/detailobjectsystem.cpp b/sp/src/game/client/detailobjectsystem.cpp
+index 3e211bb0..af29ab80 100644
+--- a/sp/src/game/client/detailobjectsystem.cpp
++++ b/sp/src/game/client/detailobjectsystem.cpp
+@@ -123,6 +123,8 @@ public:
+ 					 unsigned char shapeAngle, unsigned char shapeSize, unsigned char swayAmount );
+ 
+ 	void SetAlpha( unsigned char alpha ) { m_Alpha = alpha; }
++	// halfcraft: moved out of sight, or back (HalfCraft_DetailHide)
++	void HalfCraftSetOrigin( const Vector &origin ) { m_Origin = origin; }
+ 
+ 
+ 	// IClientUnknown overrides.
+@@ -472,6 +474,15 @@ private:
+ 	CUtlVector<DetailPropSpriteDict_t>		m_DetailSpriteDictFlipped;
+ 	CUtlVector<DetailPropLightstylesLump_t>	m_DetailLighting;
+ 	FastSpriteX4_t *m_pFastSpriteData;
++	int m_nHalfCraftFastSpriteX4Count; // halfcraft: how many m_pFastSpriteData has
++
++public:
++	// halfcraft: see HalfCraft_DetailCount
++	int HalfCraftDetailCount() const;
++	Vector HalfCraftDetailOrigin( int i );
++	void HalfCraftDetailHide( int i, bool hide );
++
++private:
+ 
+ 	// Necessary to get sprites to batch correctly
+ 	CMaterialReference m_DetailSpriteMaterial;
+@@ -508,6 +519,64 @@ IDetailObjectSystem* DetailObjectSystem()
+ 	return &s_DetailObjectSystem;
+ }
+ 
++// halfcraft: how far down a detail prop goes out of sight: past any view's detail distance, and no map is that deep
++static const float HALFCRAFT_HIDDEN_DROP = 100000.0f;
++
++int HalfCraft_DetailCount()
++{
++	return s_DetailObjectSystem.HalfCraftDetailCount();
++}
++
++Vector HalfCraft_DetailOrigin( int i )
++{
++	return s_DetailObjectSystem.HalfCraftDetailOrigin( i );
++}
++
++void HalfCraft_DetailHide( int i, bool hide )
++{
++	s_DetailObjectSystem.HalfCraftDetailHide( i, hide );
++}
++
++int CDetailObjectSystem::HalfCraftDetailCount() const
++{
++	return m_DetailObjects.Count() + ( m_pFastSpriteData ? m_nHalfCraftFastSpriteX4Count * 4 : 0 );
++}
++
++Vector CDetailObjectSystem::HalfCraftDetailOrigin( int i )
++{
++	Vector origin;
++	if ( i < m_DetailObjects.Count() )
++	{
++		origin = m_DetailObjects[i].GetRenderOrigin();
++	}
++	else
++	{
++		const int fast = i - m_DetailObjects.Count();
++		FastSpriteX4_t &sprite = m_pFastSpriteData[fast >> 2];
++		origin.Init( SubFloat( sprite.m_Pos.x, fast & 3 ), SubFloat( sprite.m_Pos.y, fast & 3 ), SubFloat( sprite.m_Pos.z, fast & 3 ) );
++	}
++	if ( origin.z < -HALFCRAFT_HIDDEN_DROP * 0.5f )
++		origin.z += HALFCRAFT_HIDDEN_DROP;
++	return origin;
++}
++
++void CDetailObjectSystem::HalfCraftDetailHide( int i, bool hide )
++{
++	if ( i < 0 || i >= HalfCraftDetailCount() )
++		return;
++	const Vector origin = HalfCraftDetailOrigin( i );
++	const float z = hide ? origin.z - HALFCRAFT_HIDDEN_DROP : origin.z;
++	if ( i < m_DetailObjects.Count() )
++	{
++		m_DetailObjects[i].HalfCraftSetOrigin( Vector( origin.x, origin.y, z ) );
++	}
++	else
++	{
++		const int fast = i - m_DetailObjects.Count();
++		SubFloat( m_pFastSpriteData[fast >> 2].m_Pos.z, fast & 3 ) = z;
++	}
++}
++
+ 
+ 
+ //-----------------------------------------------------------------------------
+@@ -1399,6 +1468,7 @@ void CDetailModel::DrawSwayingQuad( CMeshBuilder &meshBuilder, Vector vecOrigin,
+ CDetailObjectSystem::CDetailObjectSystem() : m_DetailSpriteDict( 0, 32 ), m_DetailObjectDict( 0, 32 ), m_DetailSpriteDictFlipped( 0, 32 )
+ {
+ 	m_pFastSpriteData = NULL;
++	m_nHalfCraftFastSpriteX4Count = 0;
+ 	m_pSortInfo = NULL;
+ 	m_pFastSortInfo = NULL;
+ 	m_pBuildoutBuffer = NULL;
+@@ -1429,6 +1499,7 @@ CDetailObjectSystem::~CDetailObjectSystem()
+ 	{
+ 		MemAlloc_FreeAligned( m_pFastSpriteData );
+ 		m_pFastSpriteData = NULL;
++		m_nHalfCraftFastSpriteX4Count = 0;
+ 	}
+ 	FreeSortBuffers();
+ 
+@@ -1545,6 +1616,7 @@ void CDetailObjectSystem::LevelShutdownPreEntity()
+ 	{
+ 		MemAlloc_FreeAligned( m_pFastSpriteData );
+ 		m_pFastSpriteData = NULL;
++		m_nHalfCraftFastSpriteX4Count = 0;
+ 	}
+ 	FreeSortBuffers();
+ 
+@@ -1757,6 +1829,7 @@ void CDetailObjectSystem::UnserializeModels( CUtlBuffer& buf )
+ 			MemAlloc_AllocAligned( 
+ 				( nNumFastSpritesToAllocate >> 2 ) * sizeof( FastSpriteX4_t ),
+ 				sizeof( fltx4 ) ) );
++		m_nHalfCraftFastSpriteX4Count = nNumFastSpritesToAllocate >> 2;
+ 	}
+ 
+ 	m_DetailObjects.EnsureCapacity( nNumOldStyleObjects  );
+diff --git a/sp/src/game/client/detailobjectsystem.h b/sp/src/game/client/detailobjectsystem.h
+index 11bb696f..51fd75c9 100644
+--- a/sp/src/game/client/detailobjectsystem.h
++++ b/sp/src/game/client/detailobjectsystem.h
+@@ -52,6 +52,15 @@ public:
+ //-----------------------------------------------------------------------------
+ IDetailObjectSystem* DetailObjectSystem();
+ 
++// halfcraft: the map's detail props (grass, bushes), each by an index: the models', then the fast sprites' four lanes
++// each. hc_dig.cpp moves the ones on cells minecraft dug out of sight, and back once their cell isn't dug any more
++// @return how many the level has (0 before it loads its detail props)
++int HalfCraft_DetailCount();
++// where detail prop i stands, as the map put it (out of sight or not)
++Vector HalfCraft_DetailOrigin( int i );
++// detail prop i out of sight (far below the map, past any view's detail distance), or back where the map put it
++void HalfCraft_DetailHide( int i, bool hide );
++
+ 
+ #endif // DETAILOBJECTSYSTEM_H
+ 
 diff --git a/sp/src/game/client/history_resource.cpp b/sp/src/game/client/history_resource.cpp
 index c0743b41..69148bf8 100644
 --- a/sp/src/game/client/history_resource.cpp
