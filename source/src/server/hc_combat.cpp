@@ -179,18 +179,19 @@ namespace halfcraft
 		/// proto::kInHurtFrom, ahead of the hurt itself (both go through client.dll's queue, in order).
 		void push_hurt_from(CBasePlayer* player, const CTakeDamageInfo& info)
 		{
-			const PushInputFn push_input = dedicated_link() ? nullptr : client_push_input();
+			const bool        dedicated = dedicated_link();
+			const PushInputFn push_input = dedicated ? nullptr : client_push_input();
 			Vector            origin;
-			if ((!push_input && !dedicated_link()) || !hurt_origin(player, info, origin)) {
+			if ((!push_input && !dedicated) || !hurt_origin(player, info, origin)) {
 				return;
 			}
 			const auto   mc = source_to_mc(origin.Base(), g_slot);
 			const float  at[3] = { static_cast<float>(mc.x), static_cast<float>(mc.y), static_cast<float>(mc.z) };
 			std::int32_t bits[3];
 			std::memcpy(bits, at, sizeof(bits));
-			if (dedicated_link()) {
+			if (dedicated) {
 				send_player_input(player, proto::kInHurtFrom, 0, bits[0], bits[1], bits[2]);  // the halfcraft server's
-			} else {
+			} else if (push_input) {
 				push_input(proto::kInHurtFrom, 0, bits[0], bits[1], bits[2]);
 			}
 		}

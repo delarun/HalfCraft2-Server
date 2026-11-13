@@ -687,7 +687,7 @@ namespace halfcraft
 	inline std::optional<std::string> model_of_file(const std::string& file)
 	{
 		namespace d = campaign_models_detail;
-		const std::string name = normal_model_name(file);
+		std::string name = normal_model_name(file);
 		if (d::ends_with(name, ".mdl")) {
 			return name;
 		}
@@ -839,8 +839,8 @@ namespace halfcraft
 			if (kind == "list" && line.size() == 2 && checksum_word(line[1])) {
 				state.list_hash = static_cast<std::uint32_t>(*number(line[1], 16));
 				has_list = true;
-			} else if (kind == "set" && line.size() == 2 && model_set_from_key(line[1])) {
-				state.set = *model_set_from_key(line[1]);
+			} else if (const auto set = kind == "set" && line.size() == 2 ? model_set_from_key(line[1]) : std::nullopt; set) {
+				state.set = *set;
 				has_set = true;
 			} else if (kind == "file" && line.size() == 5 && number(line[2], 10).value_or(0) > 0 && number(line[4], 10).value_or(0) > 0) {
 				state.files.push_back({ line[1], static_cast<long>(*number(line[2], 10)), line[3], static_cast<long>(*number(line[4], 10)) });
