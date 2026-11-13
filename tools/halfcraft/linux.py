@@ -76,11 +76,11 @@ def wine_image() -> None:
     docker("build", "-q", "-t", WINE_IMAGE, "-f", WINE_DOCKERFILE, WINE_DOCKERFILE.parent, timeout=DOCKER_SECONDS, what="docker build of the wine image")
 
 
-def compile_shader(source: str) -> str:
+def compile_shader(source: str, *options: str) -> str:
     """ShaderCompile2 on one .fxc in STAGE, in the wine container; its output."""
     uid, gid = os.getuid(), os.getgid()
     # wine wants a prefix its user owns: a tmpfs home of theirs, made afresh each run
-    script = f"wineboot --init >/dev/null 2>&1; wine /sc/ShaderCompile2.exe -ver 20b -shaderpath 'Z:\\shaders' {source}"
+    script = f"wineboot --init >/dev/null 2>&1; wine /sc/ShaderCompile2.exe {' '.join(options)} -ver 20b -shaderpath 'Z:\\shaders' {source}"
     run = [
         "run", "--rm", "--network", "none", *user(),
         "--tmpfs", f"/home/hc:uid={uid},gid={gid},mode=0700,exec",
@@ -133,6 +133,13 @@ def build_shaders(engines: list, shader_errors: Callable[[str], int | None]) -> 
             raise ToolError(f"ShaderCompile2 made no {vcs.name} from {shader.source}:\n{output.strip()[-2000:]}")
         if shader.combos is not None and struct.unpack_from("<iii", vcs.read_bytes()) != (6, shader.combos, shader.dynamic):
             raise ToolError(f"{shader.name}.vcs doesn't have the stock combo layout")
+        # a .vcs ShaderCompile2 keeps (a release's, from seed_from_release) gets no .inc from it, and the shader
+        # dll's c++ includes it: -dynamic writes the header alone, in seconds, and leaves the .vcs as it is
+        inc = STAGE / f"include/{shader.name}.inc"
+        if not inc.is_file():
+            output = compile_shader(shader.source, "-dynamic")
+            if not inc.is_file():
+                raise ToolError(f"ShaderCompile2 -dynamic made no {inc.name} from {shader.source}:\n{output.strip()[-2000:]}")
         shutil.copy2(vcs, shaders.OUT)
 
 
