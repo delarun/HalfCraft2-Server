@@ -3,6 +3,7 @@
 
 #include "cbase.h"
 #include "c_baseplayer.h"
+#include "filesystem.h"
 #include "iclientvehicle.h"
 #include "iinput.h"
 #include "inetchannelinfo.h"
@@ -13,6 +14,7 @@
 #include "view_shared.h"
 #include "ivrenderview.h"
 #include "tier0/icommandline.h"
+#include "tier1/utlbuffer.h"
 
 #include "tier0/valve_minmax_off.h"
 #include <algorithm>
@@ -41,6 +43,8 @@ namespace halfcraft
 {
 	namespace
 	{
+		constexpr const char* COMMAND_FILE = "hc_cmd.txt";
+
 		/// hc_cmd.txt in the game folder (a developer's, on linux, where nothing else reaches the console from outside):
 		/// once a second, its lines run as console commands and the file goes
 		void run_command_file()
@@ -51,19 +55,24 @@ namespace halfcraft
 				return;
 			}
 			next = now + 1.0;
-			char path[MAX_PATH];
-			Q_snprintf(path, sizeof(path), "%s/hc_cmd.txt", engine->GetGameDirectory());
-			FILE* file = fopen(path, "r");
-			if (!file) {
+			// the engine's file system: the 2015 tree's client.dll has no fopen (client_base.vpc: fopen=dont_use_fopen)
+			CUtlBuffer buffer(0, 0, CUtlBuffer::TEXT_BUFFER);
+			if (!filesystem->ReadFile(COMMAND_FILE, "MOD", buffer)) {
 				return;
 			}
-			char line[512];
-			while (fgets(line, sizeof(line), file)) {
-				log_info("hc_cmd.txt: %s", line);
-				engine->ClientCmd_Unrestricted(line);
+			filesystem->RemoveFile(COMMAND_FILE, "MOD");
+			const std::string text(static_cast<const char*>(buffer.Base()), static_cast<std::size_t>(buffer.TellPut()));
+			std::size_t       start = 0;
+			while (start < text.size()) {
+				std::size_t end = text.find('\n', start);
+				end = end == std::string::npos ? text.size() : end;
+				const std::string line = text.substr(start, end - start) + "\n";
+				start = end + 1;
+				if (line.find_first_not_of(" \t\r\n") != std::string::npos) {
+					log_info("hc_cmd.txt: %s", line.c_str());
+					engine->ClientCmd_Unrestricted(line.c_str());
+				}
 			}
-			fclose(file);
-			remove(path);
 		}
 
 		/// kRenConnect: the halfcraft server sends the player to another map's source server ("<ip>:<port>", digits, dots
