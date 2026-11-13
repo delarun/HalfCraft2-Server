@@ -50,8 +50,8 @@ namespace halfcraft
 
 	private:
 		void take_changes(CollisionStreamer* streamer);
-		/// the sections in changes_ (count of them) into the cells, and the regions around each changed cell out again
-		void apply_changes(int count, CollisionStreamer* streamer);
+		/// the sections in changes_ (copied of them) into the cells, and the regions around each changed cell out again
+		void apply_changes(int copied, CollisionStreamer* streamer);
 		void outline();
 
 		DugSinceFn                  dug_since_ = nullptr;

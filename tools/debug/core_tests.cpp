@@ -1599,7 +1599,7 @@ namespace
 		CHECK(std::fabs(area(out) - 15.0) < 1e-3);
 		for (const auto& t : out) {
 			const float cx = (t[0] + t[3] + t[6]) / 3.0f, cz = (t[2] + t[5] + t[8]) / 3.0f;
-			CHECK(!(cx > 1.0f && cx < 2.0f && cz > 1.0f && cz < 2.0f));
+			CHECK(cx <= 1.0f || cx >= 2.0f || cz <= 1.0f || cz >= 2.0f);
 		}
 		// a cell under the surface, touching it, leaves it whole; one over it too
 		out.clear();

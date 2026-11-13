@@ -1,0 +1,18 @@
+//-----------------------------------------------------------------------------
+//	HALFCRAFT_LINUX.VPC
+//
+//	the linux build's own compiler and linker settings for halfcraft_client.vpc
+//	and halfcraft_server.vpc, which include it for $POSIX only: the 2015 tree's
+//	vpc on windows takes these ninja keys for bad syntax even behind [$POSIX].
+//-----------------------------------------------------------------------------
+
+$Configuration
+{
+	$Compiler
+	{
+		// ninja: after valve's -std=c++11, so it wins
+		$NinjaExtraCXXFlags				"$BASE -std=c++17"
+		// the steam runtime's glibc (2.31) keeps shm_open in librt (core\hc_link.cpp)
+		$NinjaLibEndShlib				"$BASE -lrt"
+	}
+}

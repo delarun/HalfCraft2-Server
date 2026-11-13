@@ -21,9 +21,9 @@ namespace halfcraft
 	bool is_minecraft_prop(CBaseEntity* entity);
 
 	/// a player used a prop's item (proto::kEvPlaceProp): the object, in front of them where it fits.
-	/// @param kind - proto::PropKind; 0: `model`
+	/// @param kind - proto::PropKind; 0: `wanted`
 	/// @param prop_class - proto::PropClass, for a model
-	void place_prop(CBasePlayer* player, std::uint32_t kind, std::uint32_t prop_class, const std::string& model);
+	void place_prop(CBasePlayer* player, std::uint32_t kind, std::uint32_t prop_class, const std::string& wanted);
 
 	/// a minecraft hit by the player on such an object: it adds up, and one it breaks down goes, its item to them.
 	/// @param mc_damage - minecraft's damage (after its own modifiers)

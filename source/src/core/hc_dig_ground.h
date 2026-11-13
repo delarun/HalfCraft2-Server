@@ -131,7 +131,7 @@ namespace halfcraft
 			origin_[0] = origin[0];
 			origin_[1] = origin[1];
 			origin_[2] = origin[2];
-			columns_.resize(static_cast<std::size_t>(REGION_VOXELS * REGION_VOXELS));
+			columns_.resize(static_cast<std::size_t>(REGION_VOXELS) * static_cast<std::size_t>(REGION_VOXELS));
 			const double top = origin[1] + COLLISION_REGION_SIZE + GROUND_DEPTH;
 			for (const ColPrimitives::Tri& tri : tris) {
 				const float* a = tri.v;
@@ -160,7 +160,7 @@ namespace halfcraft
 							continue;
 						}
 						const float y = a[1] + w1 * (b[1] - a[1]) + w2 * (c[1] - a[1]);
-						columns_[static_cast<std::size_t>(z * REGION_VOXELS + x)].push_back({ y, ny > 0.0f });
+						columns_[(static_cast<std::size_t>(z) * static_cast<std::size_t>(REGION_VOXELS)) + static_cast<std::size_t>(x)].push_back({ y, ny > 0.0f });
 					}
 				}
 			}
@@ -175,7 +175,7 @@ namespace halfcraft
 		{
 			const int cx = std::clamp(static_cast<int>(std::floor((x - origin_[0]) * 8.0)), 0, REGION_VOXELS - 1);
 			const int cz = std::clamp(static_cast<int>(std::floor((z - origin_[2]) * 8.0)), 0, REGION_VOXELS - 1);
-			for (const Cross& cross : columns_[static_cast<std::size_t>(cz * REGION_VOXELS + cx)]) {
+			for (const Cross& cross : columns_[(static_cast<std::size_t>(cz) * static_cast<std::size_t>(REGION_VOXELS)) + static_cast<std::size_t>(cx)]) {
 				if (cross.y > y) {
 					return cross.up && cross.y - y >= GROUND_MARGIN && cross.y - y <= GROUND_DEPTH;
 				}

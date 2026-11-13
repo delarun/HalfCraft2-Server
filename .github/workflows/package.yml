@@ -38,15 +38,25 @@ jobs:
         run: python tools/build/setup_sdk.py
       # ShaderCompile2 skips a shader whose source and includes have the crc its .vcs was compiled from, so an older
       # stage (restore-keys) only saves the shaders that didn't change (tools/halfcraft/build.py build_shaders)
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Shader stage of an earlier run
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build/shaders
-          key: shaders-${{ hashFiles('source/sdk/*.patch', 'tools/halfcraft/sdk.py', 'tools/halfcraft/shaders.py') }}
-          restore-keys: shaders-
+          key: shaders-${{ hashFiles('source/sdk/*.patch', 'tools/halfcraft/sdk.py', 'tools/halfcraft/shaders.py') }}-${{ github.run_id }}
+          restore-keys: |
+            shaders-${{ hashFiles('source/sdk/*.patch', 'tools/halfcraft/sdk.py', 'tools/halfcraft/shaders.py') }}-
+            shaders-
       - name: Minecraft mod
         run: python tools/build/gradle.py assemble
       - name: Half-Life side
         run: python tools/build/build_hl2.py
+      # kept even when the dlls after the shaders fail: the hours went into the shaders (a failed one leaves no .vcs)
+      - name: Keep the shader stage
+        if: always() && hashFiles('build/shaders/out/*.vcs') != ''
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/shaders
+          key: shaders-${{ hashFiles('source/sdk/*.patch', 'tools/halfcraft/sdk.py', 'tools/halfcraft/shaders.py') }}-${{ github.run_id }}
       - name: Zip
         run: python tools/build/package.py --no-build
       - name: Server's Windows client (the game folder the launcher installs on Windows)
